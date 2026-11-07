@@ -47,13 +47,25 @@
       </div>
     </header>
 
+    <!-- Navigation Mode Switcher (Testy vs Studovna) -->
+    <nav class="app-nav-tabs">
+      <button id="navQuizBtn" class="nav-tab-btn active">
+        <span class="nav-tab-icon">🎯</span>
+        <span class="nav-tab-label">Testy & Dril</span>
+      </button>
+      <button id="navTheoryBtn" class="nav-tab-btn">
+        <span class="nav-tab-icon">📖</span>
+        <span class="nav-tab-label">Studovna & Teorie</span>
+      </button>
+    </nav>
+
     <!-- Session Progress Line -->
-    <div class="session-progress-container">
+    <div class="session-progress-container" id="sessionProgressContainer">
       <div class="session-progress-bar" id="sessionProgressBar" style="width: 0%;"></div>
     </div>
 
     <!-- Main Question View -->
-    <main class="quiz-main">
+    <main class="quiz-main" id="quizMain">
       <div class="card question-card" id="questionCard">
         <!-- Badge row -->
         <div class="card-meta">
@@ -103,6 +115,39 @@
         </div>
       </div>
     </main>
+
+    <!-- Learning Database / Studovna View -->
+    <section class="theory-view" id="theoryView" style="display: none;">
+      <div class="theory-header-card">
+        <h2>📖 C1 Studovna & Taháky</h2>
+        <p>Kompletní pravidla, vzorce a zkouškové strategie pro všechny oblasti CAE.</p>
+        
+        <!-- Search bar -->
+        <div class="theory-search-bar">
+          <input 
+            type="text" 
+            id="theorySearchInput" 
+            class="theory-search-input" 
+            placeholder="🔍 Hledej v pravidlech (inverze, subjunktiv, but for, -ory)..."
+          />
+        </div>
+
+        <!-- Filter chips -->
+        <div class="theory-chips" id="theoryChips">
+          <button class="chip active" data-category="all">Vše</button>
+          <button class="chip" data-category="inversions">Záporné inverze</button>
+          <button class="chip" data-category="word_formation">Word Formation</button>
+          <button class="chip" data-category="transformations">Transformace</button>
+          <button class="chip" data-category="register">Formální styl & Sloh</button>
+          <button class="chip" data-category="collocations">Kolokace & Idiomy</button>
+        </div>
+      </div>
+
+      <!-- Theory Cards Render Container -->
+      <div class="theory-cards-container" id="theoryCardsContainer">
+        <!-- Rendered dynamically by JavaScript -->
+      </div>
+    </section>
 
     <!-- Bottom Sheet / Feedback Panel (Slides up) -->
     <div class="feedback-sheet" id="feedbackSheet">
@@ -227,6 +272,7 @@
 
   <!-- Scripts -->
   <script src="questions.js"></script>
+  <script src="theory.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

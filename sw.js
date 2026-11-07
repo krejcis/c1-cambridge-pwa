@@ -1,12 +1,13 @@
 // Service Worker pro C1 Cambridge Master PWA
 // 100% Offline podpora
 
-const CACHE_NAME = "c1-master-v2";
+const CACHE_NAME = "c1-master-v3";
 const ASSETS_TO_CACHE = [
   "./",
   "./index.html",
   "./style.css",
   "./app.js",
+  "./theory.js",
   "./questions.js",
   "./manifest.json",
   "./icon.svg"

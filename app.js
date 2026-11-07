@@ -83,6 +83,19 @@ class C1App {
     this.soundIconEl = document.getElementById("soundIcon");
     this.sessionProgressBar = document.getElementById("sessionProgressBar");
 
+    // Navigation and Views
+    this.navQuizBtn = document.getElementById("navQuizBtn");
+    this.navTheoryBtn = document.getElementById("navTheoryBtn");
+    this.quizMain = document.getElementById("quizMain");
+    this.theoryView = document.getElementById("theoryView");
+    this.sessionProgressContainer = document.getElementById("sessionProgressContainer");
+
+    // Theory elements
+    this.theorySearchInput = document.getElementById("theorySearchInput");
+    this.theoryChips = document.getElementById("theoryChips");
+    this.theoryCardsContainer = document.getElementById("theoryCardsContainer");
+    this.currentTheoryFilter = "all";
+
     // Question card elements
     this.qCategoryTag = document.getElementById("qCategoryTag");
     this.qCounterTag = document.getElementById("qCounterTag");
@@ -120,6 +133,25 @@ class C1App {
   }
 
   attachEventListeners() {
+    // Navigation Tabs (Testy vs Studovna)
+    this.navQuizBtn.addEventListener("click", () => this.switchNavTab("quiz"));
+    this.navTheoryBtn.addEventListener("click", () => this.switchNavTab("theory"));
+
+    // Theory search and filters
+    if (this.theorySearchInput) {
+      this.theorySearchInput.addEventListener("input", () => this.renderTheory());
+    }
+    if (this.theoryChips) {
+      this.theoryChips.addEventListener("click", (e) => {
+        const chip = e.target.closest(".chip");
+        if (!chip) return;
+        this.theoryChips.querySelectorAll(".chip").forEach(c => c.classList.remove("active"));
+        chip.classList.add("active");
+        this.currentTheoryFilter = chip.dataset.category;
+        this.renderTheory();
+      });
+    }
+
     // Sound toggle
     this.soundToggleBtn.addEventListener("click", () => {
       this.soundEnabled = !this.soundEnabled;
@@ -180,6 +212,100 @@ class C1App {
           this.loadNextQuestion();
         }
       }
+    });
+  }
+
+  switchNavTab(tabName) {
+    if (tabName === "quiz") {
+      this.navQuizBtn.classList.add("active");
+      this.navTheoryBtn.classList.remove("active");
+      this.quizMain.style.display = "flex";
+      this.theoryView.style.display = "none";
+      this.sessionProgressContainer.style.display = "block";
+    } else {
+      this.navQuizBtn.classList.remove("active");
+      this.navTheoryBtn.classList.add("active");
+      this.quizMain.style.display = "none";
+      this.theoryView.style.display = "flex";
+      this.sessionProgressContainer.style.display = "none";
+      this.renderTheory();
+    }
+  }
+
+  renderTheory() {
+    if (!this.theoryCardsContainer || typeof C1_THEORY_DATABASE === "undefined") return;
+
+    const searchTerm = (this.theorySearchInput?.value || "").toLowerCase().trim();
+    const filter = this.currentTheoryFilter || "all";
+
+    let items = C1_THEORY_DATABASE;
+    if (filter !== "all") {
+      items = items.filter(it => it.id === filter);
+    }
+
+    if (searchTerm) {
+      items = items.filter(it => {
+        const titleMatch = it.title.toLowerCase().includes(searchTerm);
+        const descMatch = it.shortDesc.toLowerCase().includes(searchTerm);
+        const formulaMatch = it.formula.toLowerCase().includes(searchTerm);
+        const sectionMatch = it.sections.some(s => 
+          s.heading.toLowerCase().includes(searchTerm) || s.content.toLowerCase().includes(searchTerm)
+        );
+        return titleMatch || descMatch || formulaMatch || sectionMatch;
+      });
+    }
+
+    if (items.length === 0) {
+      this.theoryCardsContainer.innerHTML = `
+        <div class="theory-card" style="text-align: center; color: var(--text-muted); padding: 40px 20px;">
+          <div style="font-size: 2.5rem; margin-bottom: 10px;">🔍</div>
+          <h3>Nebylo nic nalezeno</h3>
+          <p>Zkus zadat jiný výraz (např. 'inverze', 'subjunktiv', 'but for', '-ory').</p>
+        </div>
+      `;
+      return;
+    }
+
+    this.theoryCardsContainer.innerHTML = items.map(cat => {
+      const sectionsHtml = cat.sections.map(sec => `
+        <div class="theory-section">
+          <h4>${sec.heading}</h4>
+          <div class="theory-section-content">${sec.content}</div>
+        </div>
+      `).join("");
+
+      return `
+        <article class="theory-card" id="theory-cat-${cat.id}">
+          <div class="theory-card-header">
+            <span class="theory-card-icon">${cat.icon}</span>
+            <div class="theory-card-title">
+              <h3>${cat.title}</h3>
+              <p>${cat.shortDesc}</p>
+            </div>
+          </div>
+
+          <div class="theory-formula-badge">
+            ⚡️ VZOREC: ${cat.formula}
+          </div>
+
+          <div class="theory-card-body">
+            ${sectionsHtml}
+          </div>
+
+          <button class="practice-topic-btn" data-topic="${cat.id}">
+            Procvičit toto téma v testu (${cat.icon}) ➔
+          </button>
+        </article>
+      `;
+    }).join("");
+
+    // Attach click events to "Procvičit toto téma" buttons
+    this.theoryCardsContainer.querySelectorAll(".practice-topic-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const topic = btn.dataset.topic;
+        this.switchNavTab("quiz");
+        this.initTopic(topic);
+      });
     });
   }
 
