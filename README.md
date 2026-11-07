@@ -4,6 +4,13 @@ Jednoduchá offline mobilní aplikace fungující na principu **Autoškoly a Duo
 
 ---
 
+## 🌐 Živá aplikace online (GitHub Pages)
+
+Aplikace je nasazena a připravena k použití na mobilu i počítači:
+👉 **[https://krejcis.github.io/c1-cambridge-pwa/](https://krejcis.github.io/c1-cambridge-pwa/)**
+
+---
+
 ## 🚀 Co aplikace umí:
 
 1. **Testy ve stylu Autoškoly a Duolinga**:
