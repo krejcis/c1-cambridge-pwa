@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>C1 Cambridge Master - CAE & Maturita</title>
+  
+  <!-- PWA & Apple Web App Meta -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#090d16">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="C1 Master">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <link rel="icon" type="image/svg+xml" href="icon.svg">
+
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Top Bar Header -->
+    <header class="app-header">
+      <div class="header-left">
+        <button id="categoryMenuBtn" class="pill-btn topic-pill" title="Změnit téma tréninku">
+          <span id="currentTopicName">Mix témat</span>
+          <svg class="chevron-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+      </div>
+
+      <div class="header-right">
+        <!-- Daily Streak Counter -->
+        <div class="stat-badge streak-badge" id="streakBadge" title="Tvůj denní streak">
+          <span class="badge-icon">🔥</span>
+          <span id="streakCount">0</span>
+        </div>
+
+        <!-- Daily Goal Target (20 per day) -->
+        <div class="stat-badge goal-badge" id="goalBadge" title="Dnešní cíl splněných otázek">
+          <span class="badge-icon">🎯</span>
+          <span id="dailyProgressText">0/20</span>
+        </div>
+
+        <!-- Sound Toggle -->
+        <button id="soundToggleBtn" class="icon-btn" title="Zvuk zapnut / vypnut">
+          <span id="soundIcon">🔊</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Session Progress Line -->
+    <div class="session-progress-container">
+      <div class="session-progress-bar" id="sessionProgressBar" style="width: 0%;"></div>
+    </div>
+
+    <!-- Main Question View -->
+    <main class="quiz-main">
+      <div class="card question-card" id="questionCard">
+        <!-- Badge row -->
+        <div class="card-meta">
+          <span class="category-tag" id="qCategoryTag">Záporné inverze</span>
+          <span class="counter-tag" id="qCounterTag">Otázka 1</span>
+        </div>
+
+        <!-- Instruction -->
+        <div class="instruction-text" id="qInstruction">
+          Vyber správnou možnost:
+        </div>
+
+        <!-- Optional Context Prompt (for Transformations) -->
+        <div class="prompt-context-box" id="qPromptContext" style="display: none;">
+          <div class="prompt-label">Původní věta:</div>
+          <div class="prompt-text" id="qPromptText"></div>
+          <div class="prompt-keyword-box">
+            Klíčové slovo: <strong id="qKeyWord"></strong>
+          </div>
+        </div>
+
+        <!-- The Sentence / Question with Blank -->
+        <div class="question-text" id="qQuestionText">
+          Načítám otázku...
+        </div>
+
+        <!-- Multiple Choice Options Container -->
+        <div class="options-container" id="choiceOptionsContainer">
+          <!-- Dynamically inserted buttons A, B, C, D -->
+        </div>
+
+        <!-- Text Input Container -->
+        <div class="text-input-container" id="textInputContainer" style="display: none;">
+          <input 
+            type="text" 
+            id="textAnswerInput" 
+            class="c1-input" 
+            placeholder="Napiš svou odpověď..." 
+            autocomplete="off" 
+            autocorrect="off" 
+            autocapitalize="off" 
+            spellcheck="false"
+          />
+          <button id="submitTextBtn" class="primary-btn submit-btn">
+            Ověřit ➔
+          </button>
+        </div>
+      </div>
+    </main>
+
+    <!-- Bottom Sheet / Feedback Panel (Slides up) -->
+    <div class="feedback-sheet" id="feedbackSheet">
+      <div class="feedback-sheet-content">
+        <div class="feedback-status-row">
+          <div class="status-left">
+            <span class="status-icon" id="statusIcon">🎉</span>
+            <div class="status-text-group">
+              <h3 id="statusTitle">Skvěle! Správná odpověď</h3>
+              <p id="correctAnswerDisplay" class="correct-answer-display" style="display: none;"></p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Explanation Card -->
+        <div class="explanation-box" id="explanationBox">
+          <div class="explanation-header">
+            <strong>💡 Proč je to tak (Pravidlo):</strong>
+          </div>
+          <p id="explanationText" class="explanation-body"></p>
+          <div class="tip-badge" id="tipBox" style="display: none;">
+            <span class="tip-icon">⚡️</span>
+            <span id="tipText"></span>
+          </div>
+        </div>
+
+        <button id="nextQuestionBtn" class="primary-btn next-btn">
+          Další otázka ➜
+        </button>
+      </div>
+    </div>
+
+    <!-- Category / Mode Selection Modal -->
+    <div class="modal-overlay" id="topicModal">
+      <div class="modal-sheet">
+        <div class="modal-header">
+          <h3>Vyber téma tréninku</h3>
+          <button id="closeTopicModalBtn" class="close-btn">&times;</button>
+        </div>
+        <div class="topic-list" id="topicList">
+          <button class="topic-item active" data-topic="daily">
+            <span class="topic-icon">📅</span>
+            <div class="topic-info">
+              <strong>Dnešní dávka (20 otázek na den)</strong>
+              <small id="dailyPackDateLabel">20 otázek na dnešek (od 8.11. do 31.12.)</small>
+            </div>
+          </button>
+          <button class="topic-item" data-topic="all">
+            <span class="topic-icon">🎲</span>
+            <div class="topic-info">
+              <strong>Kompletní C1 Databáze (1080 otázek)</strong>
+              <small>Všechny okruhy náhodně ze všech dnů</small>
+            </div>
+          </button>
+          <button class="topic-item" data-topic="inversions">
+            <span class="topic-icon">🔥</span>
+            <div class="topic-info">
+              <strong>Záporné inverze</strong>
+              <small>Hardly had I, Under no circumstances, Seldom...</small>
+            </div>
+          </button>
+          <button class="topic-item" data-topic="word_formation">
+            <span class="topic-icon">✏️</span>
+            <div class="topic-info">
+              <strong>Tvoření slov (Word Formation)</strong>
+              <small>Přípony, záporné předpony, odvozeniny</small>
+            </div>
+          </button>
+          <button class="topic-item" data-topic="transformations">
+            <span class="topic-icon">🔄</span>
+            <div class="topic-info">
+              <strong>Transformace vět (Part 4)</strong>
+              <small>Pasivní infinitivy, kondicionály, vazby</small>
+            </div>
+          </button>
+          <button class="topic-item" data-topic="register">
+            <span class="topic-icon">📝</span>
+            <div class="topic-info">
+              <strong>Formální styl & Sloh (Writing)</strong>
+              <small>Subjunktiv, konektory, eliminace hovorovosti</small>
+            </div>
+          </button>
+          <button class="topic-item" data-topic="collocations">
+            <span class="topic-icon">🧩</span>
+            <div class="topic-info">
+              <strong>Kolokace & Idiomy (Use of English)</strong>
+              <small>Předložkové vazby a frázová slovesa</small>
+            </div>
+          </button>
+          <button class="topic-item" data-topic="mistakes" id="mistakesTopicItem">
+            <span class="topic-icon">❌</span>
+            <div class="topic-info">
+              <strong>Opakování mých chyb</strong>
+              <small id="mistakesCountLabel">0 uložených chyb</small>
+            </div>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Daily Celebration Modal -->
+    <div class="celebration-overlay" id="celebrationOverlay">
+      <div class="celebration-card">
+        <div class="celebration-flame">🔥</div>
+        <h2>Denní cíl 20/20 splněn!</h2>
+        <p class="celebration-sub">
+          Dnes jsi úspěšně vyřešil 20 C1 otázek. Tvůj streak se zvyšuje na:
+        </p>
+        <div class="celebration-streak-number" id="celebrationStreakVal">
+          1 den
+        </div>
+        <p class="celebration-note">
+          Pokračuj v pravidelném tréninku každý den a C1 certifikát máš v kapse!
+        </p>
+        <button id="closeCelebrationBtn" class="primary-btn celebration-btn">
+          Trénovat dál 🚀
+        </button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Scripts -->
+  <script src="questions.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

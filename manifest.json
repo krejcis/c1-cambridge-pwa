@@ -1,0 +1,19 @@
+{
+  "name": "C1 Cambridge Master - CAE Prep",
+  "short_name": "C1 Master",
+  "description": "Mobilní offline trenažér pro zvládnutí Cambridge C1 Advanced a maturitu",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#090d16",
+  "theme_color": "#2563eb",
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

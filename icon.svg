@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1e3a8a"/>
+      <stop offset="100%" stop-color="#0f172a"/>
+    </linearGradient>
+    <linearGradient id="flameGrad" x1="0%" y1="100%" x2="0%" y2="0%">
+      <stop offset="0%" stop-color="#ea580c"/>
+      <stop offset="50%" stop-color="#f97316"/>
+      <stop offset="100%" stop-color="#facc15"/>
+    </linearGradient>
+    <linearGradient id="badgeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3b82f6"/>
+      <stop offset="100%" stop-color="#2563eb"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="512" height="512" rx="110" fill="url(#bgGrad)"/>
+  
+  <!-- Outer Glow Circle -->
+  <circle cx="256" cy="256" r="190" fill="none" stroke="#3b82f6" stroke-width="6" opacity="0.4"/>
+
+  <!-- Graduation Cap & C1 Crest -->
+  <path d="M256 120 L380 185 L256 250 L132 185 Z" fill="#60a5fa"/>
+  <path d="M190 220 L190 280 C190 320 322 320 322 280 L322 220" fill="none" stroke="#93c5fd" stroke-width="12" stroke-linecap="round"/>
+  <path d="M370 195 L370 290" stroke="#facc15" stroke-width="8" stroke-linecap="round"/>
+  <circle cx="370" cy="296" r="12" fill="#facc15"/>
+
+  <!-- Badge Text C1 -->
+  <rect x="146" y="320" width="220" height="96" rx="28" fill="url(#badgeGrad)" stroke="#60a5fa" stroke-width="4"/>
+  <text x="256" y="388" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="64" font-weight="900" fill="#ffffff" text-anchor="middle" letter-spacing="2">C1 CAE</text>
+
+  <!-- Mini Flame on top right -->
+  <path d="M380 90 C380 90 410 120 410 145 C410 162 396 175 380 175 C364 175 350 162 350 145 C350 135 356 125 365 115 C365 115 365 130 375 130 C380 130 382 120 380 90 Z" fill="url(#flameGrad)"/>
+</svg>
