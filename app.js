@@ -83,9 +83,11 @@ class C1App {
     this.soundIconEl = document.getElementById("soundIcon");
     this.sessionProgressBar = document.getElementById("sessionProgressBar");
 
-    // Navigation and Views
-    this.navQuizBtn = document.getElementById("navQuizBtn");
-    this.navTheoryBtn = document.getElementById("navTheoryBtn");
+    // Navigation and Single Toggle Button
+    this.modeToggleBtn = document.getElementById("modeToggleBtn");
+    this.modeToggleIcon = document.getElementById("modeToggleIcon");
+    this.modeToggleLabel = document.getElementById("modeToggleLabel");
+    this.currentView = "quiz";
     this.quizMain = document.getElementById("quizMain");
     this.theoryView = document.getElementById("theoryView");
     this.sessionProgressContainer = document.getElementById("sessionProgressContainer");
@@ -133,9 +135,10 @@ class C1App {
   }
 
   attachEventListeners() {
-    // Navigation Tabs (Testy vs Studovna)
-    this.navQuizBtn.addEventListener("click", () => this.switchNavTab("quiz"));
-    this.navTheoryBtn.addEventListener("click", () => this.switchNavTab("theory"));
+    // Single Mode Toggle Button (Studovna <-> Testy)
+    this.modeToggleBtn.addEventListener("click", () => {
+      this.switchNavTab(this.currentView === "quiz" ? "theory" : "quiz");
+    });
 
     // Theory search and filters
     if (this.theorySearchInput) {
@@ -216,15 +219,18 @@ class C1App {
   }
 
   switchNavTab(tabName) {
+    this.currentView = tabName;
     if (tabName === "quiz") {
-      this.navQuizBtn.classList.add("active");
-      this.navTheoryBtn.classList.remove("active");
+      this.modeToggleBtn.classList.remove("in-theory");
+      this.modeToggleIcon.textContent = "📖";
+      this.modeToggleLabel.textContent = "Studovna";
       this.quizMain.style.display = "flex";
       this.theoryView.style.display = "none";
       this.sessionProgressContainer.style.display = "block";
     } else {
-      this.navQuizBtn.classList.remove("active");
-      this.navTheoryBtn.classList.add("active");
+      this.modeToggleBtn.classList.add("in-theory");
+      this.modeToggleIcon.textContent = "🎯";
+      this.modeToggleLabel.textContent = "Do testu";
       this.quizMain.style.display = "none";
       this.theoryView.style.display = "flex";
       this.sessionProgressContainer.style.display = "none";
@@ -324,18 +330,18 @@ class C1App {
     this.currentTopic = topic;
     this.updateMistakesCountUI();
 
-    // Map labels
+    // Map labels (kompaktní pro horní lištu)
     const labels = {
-      daily: "Dnešní dávka (20)",
-      all: "Všech 1080 otázek",
-      inversions: "Záporné inverze",
-      word_formation: "Word Formation",
-      transformations: "Transformace vět",
-      register: "Formální styl & Sloh",
-      collocations: "Kolokace & Idiomy",
-      mistakes: "Moje chyby"
+      daily: "Dnes (20)",
+      all: "1080 Mix",
+      inversions: "Inverze",
+      word_formation: "Word Form.",
+      transformations: "Transf.",
+      register: "Sloh & Styl",
+      collocations: "Kolokace",
+      mistakes: "Opáčko chyb"
     };
-    this.topicNameEl.textContent = labels[topic] || "Denní dávka";
+    this.topicNameEl.textContent = labels[topic] || "Téma";
 
     // Filter question list
     if (topic === "daily") {
@@ -343,10 +349,10 @@ class C1App {
       // Pokud je dnes ještě před 8.11.2026, vezmeme první den (8.11.2026)
       if (dailyQuestions.length === 0) {
         dailyQuestions = this.questions.filter(q => q.date === "2026-11-08");
-        this.topicNameEl.textContent = "Start: 08.11. (20 otázek)";
+        this.topicNameEl.textContent = "08.11. (20)";
       } else {
         const parts = this.todayDateStr.split("-");
-        this.topicNameEl.textContent = `${parts[2]}.${parts[1]}. (20 otázek)`;
+        this.topicNameEl.textContent = `${parts[2]}.${parts[1]}. (20)`;
       }
       this.activeQuestionList = [...dailyQuestions];
     } else if (topic === "all") {

@@ -18,46 +18,41 @@
 </head>
 <body>
   <div class="app-container">
-    <!-- Top Bar Header -->
+    <!-- Top Bar Header (Compact Single Row) -->
     <header class="app-header">
-      <div class="header-left">
-        <button id="categoryMenuBtn" class="pill-btn topic-pill" title="Změnit téma tréninku">
-          <span id="currentTopicName">Mix témat</span>
-          <svg class="chevron-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
-        </button>
-      </div>
+      <!-- 1) Dropdown Menu s ikonou 3 minusů pod sebou -->
+      <button id="categoryMenuBtn" class="hamburger-menu-btn" title="Menu témat, kompletní otázky, opáčko chyb">
+        <svg class="hamburger-svg" width="18" height="15" viewBox="0 0 18 15" fill="none">
+          <line x1="1.5" y1="2.5" x2="16.5" y2="2.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+          <line x1="1.5" y1="7.5" x2="16.5" y2="7.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+          <line x1="1.5" y1="12.5" x2="16.5" y2="12.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+        </svg>
+        <span id="currentTopicName" class="hamburger-topic-label">08.11. (20)</span>
+      </button>
 
-      <div class="header-right">
-        <!-- Daily Streak Counter -->
+      <!-- 2) Jeden přepínací button mezi Studovnou a Testy -->
+      <button id="modeToggleBtn" class="mode-toggle-btn" title="Přepnout mezi Studovnou a Testy">
+        <span id="modeToggleIcon">📖</span>
+        <span id="modeToggleLabel">Studovna</span>
+      </button>
+
+      <!-- 3) Kompaktní statistiky vpravo (Streak, Cíl, Zvuk) -->
+      <div class="header-stats">
         <div class="stat-badge streak-badge" id="streakBadge" title="Tvůj denní streak">
           <span class="badge-icon">🔥</span>
           <span id="streakCount">0</span>
         </div>
 
-        <!-- Daily Goal Target (20 per day) -->
-        <div class="stat-badge goal-badge" id="goalBadge" title="Dnešní cíl splněných otázek">
+        <div class="stat-badge goal-badge" id="goalBadge" title="Dnešní cíl 20 otázek">
           <span class="badge-icon">🎯</span>
           <span id="dailyProgressText">0/20</span>
         </div>
 
-        <!-- Sound Toggle -->
-        <button id="soundToggleBtn" class="icon-btn" title="Zvuk zapnut / vypnut">
+        <button id="soundToggleBtn" class="sound-mini-btn" title="Zvuk zapnut / vypnut">
           <span id="soundIcon">🔊</span>
         </button>
       </div>
     </header>
-
-    <!-- Navigation Mode Switcher (Testy vs Studovna) -->
-    <nav class="app-nav-tabs">
-      <button id="navQuizBtn" class="nav-tab-btn active">
-        <span class="nav-tab-icon">🎯</span>
-        <span class="nav-tab-label">Testy & Dril</span>
-      </button>
-      <button id="navTheoryBtn" class="nav-tab-btn">
-        <span class="nav-tab-icon">📖</span>
-        <span class="nav-tab-label">Studovna & Teorie</span>
-      </button>
-    </nav>
 
     <!-- Session Progress Line -->
     <div class="session-progress-container" id="sessionProgressContainer">
