@@ -60,6 +60,21 @@ class C1App {
     return `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, "0")}-${String(yesterday.getDate()).padStart(2, "0")}`;
   }
 
+  checkDayRollover() {
+    const currentActualToday = this.getTodayDateString();
+    if (currentActualToday !== this.todayDateStr) {
+      this.todayDateStr = currentActualToday;
+      localStorage.setItem("c1_active_date", this.todayDateStr);
+      localStorage.setItem("c1_today_correct", "0");
+      this.todayCorrectCount = 0;
+      this.checkStreakExpiration();
+      this.updateStatsUI();
+      if (this.currentTopic === "daily") {
+        this.initTopic("daily");
+      }
+    }
+  }
+
   checkStreakExpiration() {
     if (!this.lastCompletedDate) {
       this.streak = 0;
@@ -135,6 +150,15 @@ class C1App {
   }
 
   attachEventListeners() {
+    document.addEventListener("visibilitychange", () => {
+      if (!document.hidden) {
+        this.checkDayRollover();
+      }
+    });
+    window.addEventListener("focus", () => {
+      this.checkDayRollover();
+    });
+
     // Single Mode Toggle Button (Studovna <-> Testy)
     this.modeToggleBtn.addEventListener("click", () => {
       this.switchNavTab(this.currentView === "quiz" ? "theory" : "quiz");
