@@ -1,65 +1,32 @@
-# C1 Cambridge Master – PWA Tréninková Mobilní Aplikace 🎓🔥
+# Certin90 – Certifikát za 90 dní (B2 First & C1 Advanced PWA) 🎓🔥
 
-Jednoduchá offline mobilní aplikace fungující na principu **Autoškoly a Duolinga**, vytvořená na míru pro tvou přípravu na zkoušku **Cambridge C1 Advanced (CAE)** a uznání k maturitě.
+Offline mobilní tréninková aplikace typu **Duolingo / Autoškola**, která tě za **90 dní** (jen **20 otázek / ~10 minut denně**) připraví na cambridgeské zkoušky **B2 First (FCE)** a **C1 Advanced (CAE)**.
 
 ---
 
 ## 🌐 Živá aplikace online (GitHub Pages)
 
-Aplikace je nasazena a připravena k použití na mobilu i počítači:
 👉 **[https://krejcis.github.io/c1-cambridge-pwa/](https://krejcis.github.io/c1-cambridge-pwa/)**
 
 ---
 
-## 🚀 Co aplikace umí:
+## 🚀 Hlavní funkce:
 
-1. **Testy ve stylu Autoškoly a Duolinga**:
-   * **Klikací otázky A, B, C, D** (Kolokace, Záporné inverze, Formální styl).
-   * **Psaní odpovědí** (Open Cloze, Word Formation, Key Word Transformations).
-   * Okamžitá odezva (zelená / červená).
+1. **Dvě samostatné úrovně – B2 First (910 otázek) & C1 Advanced (910 otázek)**:
+   * Každá úroveň má **7 zkouškových okruhů po 130 naprosto unikátních otázkách** (celkem **1 820 unikátních otázek** v celé aplikaci).
+   * **B2 First:** Podmínkové věty & přání, Časy/Pasivum/Nepřímá řeč, Modální slovesa & dedukce, Word Formation (Part 3), Transformace vět (Part 4), Open Cloze (Part 2), Frázová slovesa & kolokace.
+   * **C1 Advanced:** Záporné inverze, Word Formation (Part 3), Transformace vět (Part 4), Formální styl & subjunktiv, Kolokace & idiomy (Part 1), Open Cloze (Part 2), Frázová slovesa & slovesné vazby.
 
-2. **Podrobné české vysvětlení u každé chyby**:
-   * Proč je vybraná odpověď správná.
-   * Jaké gramatické pravidlo (inverze, subjunktiv, minulý infinitiv...) se uplatňuje.
-   * **Tahák a tip pro zkoušku** u každé otázky.
+2. **90denní denní plán bez opakování & chytrá smyčka oprav**:
+   * Prvních 45 dnů nabízí **900 zbrusu nových otázek** (0 opakování); dny 46–90 slouží jako cílené opakování s odstupem.
+   * Po zodpovězení denních 20 otázek tě aplikace při chybách přepne přímo do **opravy chybných otázek** – správně zodpovězené už znovu neuvidíš a do denního cíle se počítají jen správné opravy, dokud nedosáhneš **20/20**.
 
-3. **Denní streak & cíl (20 otázek denně)**:
-   * Počítadlo plamínků **🔥 Streak** (přičte se +1 den, když za den správně odpovíš na **20 otázek**).
-   * Ukládání postupu přímo do paměti telefonu/prohlížeče (LocalStorage).
+3. **Vstupní diagnostický test (21 otázek)**:
+   * Dobrovolný rozřazovací test (3 otázky z každého ze 7 okruhů) dostupný kdykoli v levém menu (`≡`) – vyhodnotí procenta po tématech a doporučí nejslabší oblasti.
 
-4. **100% Offline podpora (PWA)**:
-   * Obsahuje `Service Worker` (`sw.js`). Po prvním načtení funguje kdekoli bez internetu (v autobuse, vlaku, metru).
-   * Syntetizované zvuky přes Web Audio API (nepotřebuje stahovat žádné externí MP3 soubory).
+4. **Okruhy `X / 130` & Studovna (Learning Database)**:
+   * U každého tématu vidíš postup `X / 130` – žádná otázka se neopakuje, dokud neprojdeš a neopravíš všech 130.
+   * Přepínač v horní liště (`📖 Studovna` / `🎯 Do testů`) obsahuje kompletní vysvětlení, vzorce a zkouškové chytáky pro všechny okruhy obou úrovní.
 
-5. **Chybovník (Moje chyby)**:
-   * Otázky, kde uděláš chybu, se automaticky uloží do záložky **„Moje chyby“**, takže si je můžeš cyklicky docvičovat, dokud je nezvládneš bez zaváhání.
-
-6. **Procvičování podle témat**:
-   * Kompletní C1 Mix (jako reálná zkouška)
-   * Záporné inverze (*Hardly had I...*, *Under no circumstances...*)
-   * Tvoření slov / Word Formation (*contradictory, detrimental, inexcusable...*)
-   * Transformace vět (*is thought to have been, but for your...*)
-   * Formální styl & sloh pro esej (*subjunktiv, cleft sentences, eliminace hovorových spojek*)
-   * Kolokace & idiomy (*minute fraction, taken aback, come into effect...*)
-
----
-
-## 📱 Jak aplikaci otevřít a nainstalovat na mobil:
-
-### Možnost A: Přes domácí Wi-Fi (nejjednodušší na vyzkoušení hned)
-1. Na počítači dvakrát klikni na soubor **`start.bat`** ve složce `c1-cambridge-pwa`.
-2. V příkazovém řádku uvidíš, že server běží na portu `8080`.
-3. Zjisti IP adresu svého PC v domácí Wi-Fi síti (v powershellu příkazem `ipconfig`, např. `192.168.1.50`).
-4. Na svém mobilu (připojeném na stejnou Wi-Fi) otevři prohlížeč a zadej:
-   `http://192.168.1.50:8080` (dosaď svou IP).
-
-### Možnost B: Nahrání na bezplatný hosting (doporučeno pro trvalé používání)
-Aplikace se skládá z čistých souborů HTML, CSS a JS bez nutnosti databáze. Můžeš ji za 1 minutu zdarma nahrát na:
-* **GitHub Pages** (vytvoř veřejný repo, vlož tam složku a v Settings zapni Pages).
-* nebo **Vercel** / **Netlify** / **Cloudflare Pages** (stačí přetáhnout složku myší).
-Získáš tak zabezpečenou `https://` adresu pro svůj telefon na stálo.
-
-### Jak z ní udělat opravdovou ikonu na mobilu:
-* **iPhone (Safari):** Klepni na tlačítko Sdílet (čtvereček se šipkou nahoru) ➔ zvol **„Přidat na plochu“** (Add to Home Screen).
-* **Android (Chrome):** Klepni na tři tečky vpravo nahoře ➔ zvol **„Přidat na plochu“** nebo **„Nainstalovat aplikaci“**.
-Aplikace se pak spouští na celou obrazovku bez adresního řádku přesně jako nativní appka z App Storu / Google Play!
+5. **100% Offline PWA**:
+   * Cache (`certin90-v6`) v `sw.js` zajistí plynulý chod v metru, vlaku i bez internetu.

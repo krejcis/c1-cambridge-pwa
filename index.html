@@ -3,14 +3,14 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>C1 Cambridge Master - CAE & Maturita</title>
-  
+  <title>Certin90 – Certifikát za 90 dní (B2 &amp; C1 Cambridge)</title>
+
   <!-- PWA & Apple Web App Meta -->
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#090d16">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="C1 Master">
+  <meta name="apple-mobile-web-app-title" content="Certin90">
   <link rel="apple-touch-icon" href="icon.svg">
   <link rel="icon" type="image/svg+xml" href="icon.svg">
 
@@ -20,30 +20,30 @@
   <div class="app-container">
     <!-- Top Bar Header (Compact Single Row) -->
     <header class="app-header">
-      <!-- 1) Dropdown Menu s ikonou 3 minusů pod sebou -->
-      <button id="categoryMenuBtn" class="hamburger-menu-btn" title="Menu témat, kompletní otázky, opáčko chyb">
+      <!-- 1) Menu & Settings Page Trigger (3 horizontal bars) -->
+      <button id="categoryMenuBtn" class="hamburger-menu-btn" title="Otevřít Menu, Úroveň B2/C1, Okruhy a Nastavení">
         <svg class="hamburger-svg" width="18" height="15" viewBox="0 0 18 15" fill="none">
           <line x1="1.5" y1="2.5" x2="16.5" y2="2.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
           <line x1="1.5" y1="7.5" x2="16.5" y2="7.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
           <line x1="1.5" y1="12.5" x2="16.5" y2="12.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
         </svg>
-        <span id="currentTopicName" class="hamburger-topic-label">08.11. (20)</span>
+        <span id="currentTopicName" class="hamburger-topic-label">Den 1 · C1</span>
       </button>
 
-      <!-- 2) Jeden přepínací button mezi Studovnou a Testy -->
+      <!-- 2) Toggle button between Studovna and Testy -->
       <button id="modeToggleBtn" class="mode-toggle-btn" title="Přepnout mezi Studovnou a Testy">
         <span id="modeToggleIcon">📖</span>
         <span id="modeToggleLabel">Studovna</span>
       </button>
 
-      <!-- 3) Kompaktní statistiky vpravo (Streak, Cíl, Zvuk) -->
+      <!-- 3) Compact Stats on right (Streak, Daily 20 Goal, Sound) -->
       <div class="header-stats">
         <div class="stat-badge streak-badge" id="streakBadge" title="Tvůj denní streak">
           <span class="badge-icon">🔥</span>
           <span id="streakCount">0</span>
         </div>
 
-        <div class="stat-badge goal-badge" id="goalBadge" title="Dnešní cíl 20 otázek">
+        <div class="stat-badge goal-badge" id="goalBadge" title="Dnešní unikátní správné odpovědi (cíl 20 pro streak)">
           <span class="badge-icon">🎯</span>
           <span id="dailyProgressText">0/20</span>
         </div>
@@ -59,13 +59,22 @@
       <div class="session-progress-bar" id="sessionProgressBar" style="width: 0%;"></div>
     </div>
 
-    <!-- Main Question View -->
+    <!-- Main Question & Summary Views -->
     <main class="quiz-main" id="quizMain">
+      <!-- Active Question Card -->
       <div class="card question-card" id="questionCard">
         <!-- Badge row -->
         <div class="card-meta">
-          <span class="category-tag" id="qCategoryTag">Záporné inverze</span>
-          <span class="counter-tag" id="qCounterTag">Otázka 1</span>
+          <div class="meta-left-badges">
+            <span class="level-mini-tag" id="qLevelTag">C1</span>
+            <span class="category-tag" id="qCategoryTag">Záporné inverze</span>
+          </div>
+          <span class="counter-tag" id="qCounterTag">1 / 20</span>
+        </div>
+
+        <!-- Phase Sub-banner (e.g. "Režim opravy chyb") -->
+        <div class="phase-banner" id="phaseBanner" style="display: none;">
+          <span id="phaseBannerText">🛠️ Oprava chybných otázek</span>
         </div>
 
         <!-- Instruction -->
@@ -88,20 +97,18 @@
         </div>
 
         <!-- Multiple Choice Options Container -->
-        <div class="options-container" id="choiceOptionsContainer">
-          <!-- Dynamically inserted buttons A, B, C, D -->
-        </div>
+        <div class="options-container" id="choiceOptionsContainer"></div>
 
         <!-- Text Input Container -->
         <div class="text-input-container" id="textInputContainer" style="display: none;">
-          <input 
-            type="text" 
-            id="textAnswerInput" 
-            class="c1-input" 
-            placeholder="Napiš svou odpověď..." 
-            autocomplete="off" 
-            autocorrect="off" 
-            autocapitalize="off" 
+          <input
+            type="text"
+            id="textAnswerInput"
+            class="c1-input"
+            placeholder="Napiš svou odpověď..."
+            autocomplete="off"
+            autocorrect="off"
+            autocapitalize="off"
             spellcheck="false"
           />
           <button id="submitTextBtn" class="primary-btn submit-btn">
@@ -109,39 +116,68 @@
           </button>
         </div>
       </div>
+
+      <!-- Round Summary / Repair Prompt / Completion Card -->
+      <div class="card state-card" id="stateCard" style="display: none;">
+        <div class="state-icon" id="stateIcon">🛠️</div>
+        <h2 class="state-title" id="stateTitle">Dnešních 20 otázek dokončeno</h2>
+        <p class="state-desc" id="stateDesc"></p>
+
+        <div class="state-stats-pill" id="stateStatsPill" style="display: none;">
+          <span id="stateScoreText">15 / 20 správně</span>
+        </div>
+
+        <div class="state-actions" id="stateActions">
+          <!-- Dynamically populated action buttons -->
+        </div>
+      </div>
+
+      <!-- Diagnostic Test Result & Weakness Profile Card -->
+      <div class="card diagnostic-card" id="diagnosticResultCard" style="display: none;">
+        <div class="diagnostic-header">
+          <div class="state-icon">🧭</div>
+          <h2 id="diagResultTitle">Výsledky vstupního testu</h2>
+          <p id="diagResultSubtitle" class="state-desc"></p>
+        </div>
+
+        <div class="diag-overall-score" id="diagOverallScore"></div>
+
+        <div class="diag-recommendations" id="diagRecommendations"></div>
+
+        <div class="diag-breakdown-list" id="diagBreakdownList"></div>
+
+        <div class="state-actions">
+          <button id="diagStartWeakestBtn" class="primary-btn">Procvičit nejslabší okruh 🎯</button>
+          <button id="diagStartDailyBtn" class="secondary-btn">Přejít na dnešní dávku (20 otázek) 📅</button>
+        </div>
+      </div>
     </main>
 
     <!-- Learning Database / Studovna View -->
     <section class="theory-view" id="theoryView" style="display: none;">
       <div class="theory-header-card">
-        <h2>📖 C1 Studovna & Taháky</h2>
-        <p>Kompletní pravidla, vzorce a zkouškové strategie pro všechny oblasti CAE.</p>
-        
+        <div class="theory-title-row">
+          <h2 id="theoryHeaderTitle">📖 C1 Studovna &amp; Taháky</h2>
+          <span class="level-mini-tag" id="theoryLevelBadge">C1</span>
+        </div>
+        <p id="theoryHeaderSub">Kompletní pravidla, vzorce a zkouškové strategie pro všechny okruhy.</p>
+
         <!-- Search bar -->
         <div class="theory-search-bar">
-          <input 
-            type="text" 
-            id="theorySearchInput" 
-            class="theory-search-input" 
-            placeholder="🔍 Hledej v pravidlech (inverze, subjunktiv, but for, -ory)..."
+          <input
+            type="text"
+            id="theorySearchInput"
+            class="theory-search-input"
+            placeholder="🔍 Hledej v pravidlech a příkladech..."
           />
         </div>
 
-        <!-- Filter chips -->
-        <div class="theory-chips" id="theoryChips">
-          <button class="chip active" data-category="all">Vše</button>
-          <button class="chip" data-category="inversions">Záporné inverze</button>
-          <button class="chip" data-category="word_formation">Word Formation</button>
-          <button class="chip" data-category="transformations">Transformace</button>
-          <button class="chip" data-category="register">Formální styl & Sloh</button>
-          <button class="chip" data-category="collocations">Kolokace & Idiomy</button>
-        </div>
+        <!-- Filter chips (rendered dynamically per level) -->
+        <div class="theory-chips" id="theoryChips"></div>
       </div>
 
       <!-- Theory Cards Render Container -->
-      <div class="theory-cards-container" id="theoryCardsContainer">
-        <!-- Rendered dynamically by JavaScript -->
-      </div>
+      <div class="theory-cards-container" id="theoryCardsContainer"></div>
     </section>
 
     <!-- Bottom Sheet / Feedback Panel (Slides up) -->
@@ -175,98 +211,167 @@
       </div>
     </div>
 
-    <!-- Category / Mode Selection Modal -->
-    <div class="modal-overlay" id="topicModal">
-      <div class="modal-sheet">
-        <div class="modal-header">
-          <h3>Vyber téma tréninku</h3>
-          <button id="closeTopicModalBtn" class="close-btn">&times;</button>
+    <!-- Full-page Left Menu & Settings Overlay -->
+    <div class="menu-overlay" id="menuOverlay">
+      <div class="menu-page" id="menuPage">
+        <div class="menu-topbar">
+          <div class="brand-lockup">
+            <span class="brand-logo">🎓</span>
+            <div>
+              <div class="brand-name">Certin90</div>
+              <div class="brand-tagline">Certifikát za 90 dní · 20 otázek, 10 min</div>
+            </div>
+          </div>
+          <button id="closeMenuBtn" class="close-btn" title="Zavřít menu">&times;</button>
         </div>
-        <div class="topic-list" id="topicList">
-          <button class="topic-item active" data-topic="daily">
-            <span class="topic-icon">📅</span>
-            <div class="topic-info">
-              <strong>Dnešní dávka (20 otázek na den)</strong>
-              <small id="dailyPackDateLabel">20 otázek na dnešek (od 8.11. do 31.12.)</small>
+
+        <div class="menu-scroll-body">
+          <!-- Level Switcher Card -->
+          <section class="settings-section">
+            <div class="section-label">Cílová úroveň zkoušky</div>
+            <div class="level-switcher" id="levelSwitcher">
+              <button class="level-pill" data-level="b2" id="levelBtnB2">
+                <strong>B2 First (FCE)</strong>
+                <small>910 otázek · 7 okruhů</small>
+              </button>
+              <button class="level-pill" data-level="c1" id="levelBtnC1">
+                <strong>C1 Advanced (CAE)</strong>
+                <small>910 otázek · 7 okruhů</small>
+              </button>
             </div>
-          </button>
-          <button class="topic-item" data-topic="all">
-            <span class="topic-icon">🎲</span>
-            <div class="topic-info">
-              <strong>Kompletní C1 Databáze (1080 otázek)</strong>
-              <small>Všechny okruhy náhodně ze všech dnů</small>
+          </section>
+
+          <!-- Primary Modes -->
+          <section class="settings-section">
+            <div class="section-label">Denní režim &amp; Diagnostika</div>
+            <div class="topic-list" id="primaryModeList">
+              <button class="topic-item" data-topic="daily" id="dailyTopicBtn">
+                <span class="topic-icon">📅</span>
+                <div class="topic-info">
+                  <strong id="dailyMenuTitle">Dnešní dávka (Den 1 / 90)</strong>
+                  <small id="dailyPackDateLabel">0 / 20 splněno · 20 otázek na dnešek</small>
+                </div>
+                <span class="topic-status-pill" id="dailyStatusPill">0/20</span>
+              </button>
+
+              <button class="topic-item" data-topic="diagnostic" id="diagnosticTopicBtn">
+                <span class="topic-icon">🧭</span>
+                <div class="topic-info">
+                  <strong>Vstupní diagnostický test (21 otázek)</strong>
+                  <small id="diagnosticStatusLabel">Dobrovolný rozřazovací test (3 z každého okruhu)</small>
+                </div>
+                <span class="topic-status-pill" id="diagnosticLastPill">Spustit</span>
+              </button>
+
+              <button class="topic-item" data-topic="mistakes" id="mistakesTopicItem">
+                <span class="topic-icon">❌</span>
+                <div class="topic-info">
+                  <strong>Opáčko mých chyb</strong>
+                  <small id="mistakesCountLabel">0 uložených chyb</small>
+                </div>
+                <span class="topic-status-pill" id="mistakesPill">0</span>
+              </button>
+
+              <button class="topic-item" data-topic="all" id="allTopicBtn">
+                <span class="topic-icon">🎲</span>
+                <div class="topic-info">
+                  <strong id="allMenuTitle">Kompletní databáze (910 otázek)</strong>
+                  <small>Mix všech 7 okruhů (nejprve nevyřešené otázky)</small>
+                </div>
+              </button>
             </div>
-          </button>
-          <button class="topic-item" data-topic="inversions">
-            <span class="topic-icon">🔥</span>
-            <div class="topic-info">
-              <strong>Záporné inverze</strong>
-              <small>Hardly had I, Under no circumstances, Seldom...</small>
+          </section>
+
+          <!-- 7 Topics with X / 130 Mastery -->
+          <section class="settings-section">
+            <div class="section-label">Procvičování okruhů (130 otázek / okruh)</div>
+            <div class="topic-list" id="categoryTopicList">
+              <!-- Rendered dynamically for active B2 / C1 level -->
             </div>
-          </button>
-          <button class="topic-item" data-topic="word_formation">
-            <span class="topic-icon">✏️</span>
-            <div class="topic-info">
-              <strong>Tvoření slov (Word Formation)</strong>
-              <small>Přípony, záporné předpony, odvozeniny</small>
+          </section>
+
+          <!-- Preferences, Future AI & Danger Zone -->
+          <section class="settings-section">
+            <div class="section-label">Nastavení &amp; Nástroje</div>
+
+            <div class="settings-row-card">
+              <div class="settings-row-info">
+                <strong>🔊 Zvukové efekty</strong>
+                <small>Krátké tóny pro správnou a chybnou odpověď</small>
+              </div>
+              <button id="menuSoundToggleBtn" class="mini-action-btn">Zapnuto</button>
             </div>
-          </button>
-          <button class="topic-item" data-topic="transformations">
-            <span class="topic-icon">🔄</span>
-            <div class="topic-info">
-              <strong>Transformace vět (Part 4)</strong>
-              <small>Pasivní infinitivy, kondicionály, vazby</small>
+
+            <div class="settings-row-card ai-teaser-card">
+              <div class="settings-row-info">
+                <strong>✨ AI Oprava esejí (Gemini + Supabase)</strong>
+                <small>Chystáme: vložíš svou esej (B2/C1) a dostaneš bodování dle Cambridge kritérií.</small>
+              </div>
+              <span class="coming-soon-pill">Další krok</span>
             </div>
-          </button>
-          <button class="topic-item" data-topic="register">
-            <span class="topic-icon">📝</span>
-            <div class="topic-info">
-              <strong>Formální styl & Sloh (Writing)</strong>
-              <small>Subjunktiv, konektory, eliminace hovorovosti</small>
+
+            <div class="settings-row-card danger-card">
+              <div class="settings-row-info">
+                <strong id="resetLevelTitle">🗑️ Reset postupu pro úroveň</strong>
+                <small>Vynuluje splněné okruhy (0/130) a dnešní dávku v aktivním levelu.</small>
+              </div>
+              <button id="resetLevelBtn" class="danger-mini-btn">Resetovat</button>
             </div>
-          </button>
-          <button class="topic-item" data-topic="collocations">
-            <span class="topic-icon">🧩</span>
-            <div class="topic-info">
-              <strong>Kolokace & Idiomy (Use of English)</strong>
-              <small>Předložkové vazby a frázová slovesa</small>
-            </div>
-          </button>
-          <button class="topic-item" data-topic="mistakes" id="mistakesTopicItem">
-            <span class="topic-icon">❌</span>
-            <div class="topic-info">
-              <strong>Opakování mých chyb</strong>
-              <small id="mistakesCountLabel">0 uložených chyb</small>
-            </div>
-          </button>
+          </section>
         </div>
       </div>
     </div>
 
-    <!-- Daily Celebration Modal -->
+    <!-- First-Time Onboarding Modal (Select Level B2 vs C1) -->
+    <div class="celebration-overlay" id="onboardingOverlay">
+      <div class="celebration-card onboarding-card">
+        <div class="celebration-flame">🎓</div>
+        <h2>Vítej v Certin90!</h2>
+        <p class="celebration-sub">
+          Certifikát za 90 dní – jen <strong>20 otázek / 10 minut denně</strong>. Vyber si úroveň, na kterou teď míříš:
+        </p>
+
+        <div class="onboarding-levels">
+          <button class="onboarding-level-btn" data-level="b2">
+            <strong>📘 B2 First (FCE)</strong>
+            <span>910 unikátních otázek · Kondicionály, modály, pasivum, Part 2–4</span>
+          </button>
+          <button class="onboarding-level-btn" data-level="c1">
+            <strong>🎓 C1 Advanced (CAE)</strong>
+            <span>910 unikátních otázek · Inverze, subjunktiv, formální styl, Part 2–4</span>
+          </button>
+        </div>
+
+        <p class="celebration-note" style="margin-top: 14px;">
+          Úroveň i diagnostický test můžeš kdykoli přepnout v levém menu (≡).
+        </p>
+      </div>
+    </div>
+
+    <!-- Daily Streak Celebration Modal -->
     <div class="celebration-overlay" id="celebrationOverlay">
       <div class="celebration-card">
         <div class="celebration-flame">🔥</div>
         <h2>Denní cíl 20/20 splněn!</h2>
         <p class="celebration-sub">
-          Dnes jsi úspěšně vyřešil 20 C1 otázek. Tvůj streak se zvyšuje na:
+          Dnes jsi úspěšně vyřešil 20 unikátních otázek. Tvůj denní streak se zvyšuje na:
         </p>
         <div class="celebration-streak-number" id="celebrationStreakVal">
           1 den
         </div>
         <p class="celebration-note">
-          Pokračuj v pravidelném tréninku každý den a C1 certifikát máš v kapse!
+          Každodenní konzistence ti zajistí jistotu u zkoušky do 90 dnů!
         </p>
         <button id="closeCelebrationBtn" class="primary-btn celebration-btn">
-          Trénovat dál 🚀
+          Pokračovat 🚀
         </button>
       </div>
     </div>
-
   </div>
 
   <!-- Scripts -->
-  <script src="questions.js"></script>
+  <script src="questions-b2.js"></script>
+  <script src="questions-c1.js"></script>
   <script src="theory.js"></script>
   <script src="app.js"></script>
 </body>

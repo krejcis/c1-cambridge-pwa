@@ -1,709 +1,1553 @@
 // ========================================================
-// C1 Cambridge Master - App Engine & PWA Controller
+// Certin90 – B2 & C1 Cambridge Trainer (90-Day Method)
+// Application Logic, Per-Level State, Repair Loop & Streak Engine
 // ========================================================
 
-class C1App {
-  constructor() {
-    this.questions = typeof C1_QUESTIONS !== "undefined" ? C1_QUESTIONS : [];
-    this.currentTopic = "all";
-    this.currentQuestionIndex = 0;
-    this.activeQuestionList = [];
-    this.currentQuestion = null;
-    this.isAnswerSubmitted = false;
+const STORAGE_KEY = "certin90_state_v1";
+const LEGACY_STORAGE_KEYS = ["c1_cambridge_state_v1"];
 
-    // Daily Goal & Streak Constants
-    this.DAILY_GOAL = 20;
+const CATEGORY_ICONS = {
+  inversions: "🔥",
+  conditionals: "🔀",
+  tenses_passive: "⏳",
+  modals: "🔐",
+  word_formation: "✏️",
+  transformations: "🔄",
+  register: "📝",
+  collocations: "💎",
+  open_cloze: "🧩",
+  phrasals: "🚀"
+};
 
-    // Load Local Storage State
-    this.soundEnabled = localStorage.getItem("c1_sound_enabled") !== "false";
-    this.streak = parseInt(localStorage.getItem("c1_streak") || "0", 10);
-    this.lastCompletedDate = localStorage.getItem("c1_last_completed_date") || "";
-    this.todayDateStr = this.getTodayDateString();
-    
-    // Check if daily progress needs reset (new day)
-    const storedDate = localStorage.getItem("c1_active_date") || "";
-    if (storedDate !== this.todayDateStr) {
-      localStorage.setItem("c1_active_date", this.todayDateStr);
-      localStorage.setItem("c1_today_correct", "0");
-      this.todayCorrectCount = 0;
-      this.checkStreakExpiration();
-    } else {
-      this.todayCorrectCount = parseInt(localStorage.getItem("c1_today_correct") || "0", 10);
+function getLocalISODate(dateObj = new Date()) {
+  const y = dateObj.getFullYear();
+  const m = String(dateObj.getMonth() + 1).padStart(2, "0");
+  const d = String(dateObj.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+function addDaysISO(isoDateStr, deltaDays) {
+  const [y, m, d] = isoDateStr.split("-").map(Number);
+  const dt = new Date(y, m - 1, d);
+  dt.setDate(dt.getDate() + deltaDays);
+  return getLocalISODate(dt);
+}
+
+function diffDaysISO(startIso, endIso) {
+  const [y1, m1, d1] = startIso.split("-").map(Number);
+  const [y2, m2, d2] = endIso.split("-").map(Number);
+  const t1 = new Date(y1, m1 - 1, d1).getTime();
+  const t2 = new Date(y2, m2 - 1, d2).getTime();
+  return Math.round((t2 - t1) / 86400000);
+}
+
+function formatCzechDateLabel(isoDateStr) {
+  const [, m, d] = isoDateStr.split("-");
+  return `${parseInt(d, 10)}.${parseInt(m, 10)}.`;
+}
+
+function shuffleArray(arr) {
+  const copy = [...arr];
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy;
+}
+
+function normalizeAnswer(str) {
+  return String(str || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[’‘`]/g, "'")
+    .replace(/\s+/g, " ")
+    .replace(/[.,!?;:]+$/, "");
+}
+
+function createDailySessionForDate(bundle, startDate, targetDate) {
+  const elapsed = Math.max(0, diffDaysISO(startDate, targetDate));
+  const dayIndex = (elapsed % 90) + 1;
+  const planIds = (bundle && bundle.dailyPlan && bundle.dailyPlan[dayIndex - 1])
+    ? [...bundle.dailyPlan[dayIndex - 1]]
+    : [];
+  return {
+    date: targetDate,
+    dayIndex,
+    batchIds: planIds,
+    correctIds: [],
+    currentWrongIds: [],
+    queue: [...planIds],
+    cursor: 0,
+    phase: "initial" // "initial" | "repair_prompt" | "repair" | "completed"
+  };
+}
+
+function createEmptyLevelProgress(bundle, today) {
+  const topics = {};
+  if (bundle && Array.isArray(bundle.topics)) {
+    for (const t of bundle.topics) {
+      topics[t.id] = null;
     }
-
-    // Mistakes bank
-    try {
-      this.mistakes = JSON.parse(localStorage.getItem("c1_mistakes") || "[]");
-    } catch {
-      this.mistakes = [];
+  }
+  return {
+    startDate: today,
+    daily: createDailySessionForDate(bundle, today, today),
+    topics,
+    mistakes: [],
+    allSession: null,
+    mistakesSession: null,
+    diagnostic: {
+      inProgress: null,
+      lastResult: null
     }
+  };
+}
 
-    // Audio Context (Synthesized sound effects for zero-dependency offline audio)
+function createTopicSession(bundle, categoryId, previousMasteredIds = []) {
+  const catIds = bundle.questions
+    .filter((q) => q.category === categoryId)
+    .map((q) => q.id);
+  const masteredSet = new Set(previousMasteredIds);
+  const unseen = catIds.filter((id) => !masteredSet.has(id));
+  const phase = unseen.length === 0 && catIds.length > 0 ? "mastered" : "unseen";
+  return {
+    masteredIds: [...masteredSet],
+    currentWrongIds: [],
+    queue: shuffleArray(unseen),
+    cursor: 0,
+    phase // "unseen" | "repair_prompt" | "repair" | "mastered"
+  };
+}
+
+class Certin90App {
+  constructor(dataSources) {
+    this.dataSources = dataSources || (typeof window !== "undefined" ? window.CERTIN90_DATA : {});
+    this.theoryDB = (typeof THEORY_DATABASE !== "undefined")
+      ? THEORY_DATABASE
+      : (typeof window !== "undefined" && window.THEORY_DATABASE) ? window.THEORY_DATABASE : { b2: [], c1: [] };
+
+    this.state = null;
     this.audioCtx = null;
+    this.hasRenderedTheoryOnce = false;
+    this.lastAnsweredQuestion = null;
+  }
 
-    // DOM Elements
-    this.initDOMElements();
-    this.attachEventListeners();
-    this.updateStatsUI();
-    this.initTopic("daily");
+  init() {
+    this.loadState();
+    this.cacheDOM();
+    this.bindEvents();
+    this.checkDayRollover();
+
+    if (!this.state.activeLevel) {
+      this.state.activeLevel = "c1";
+      this.openOnboardingModal();
+    }
+
+    this.ensureDailyForToday();
+    this.renderHeaderAndMenu();
+    this.renderCurrentView();
     this.initServiceWorker();
-  }
 
-  getTodayDateString() {
-    const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-  }
-
-  getYesterdayDateString() {
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-    return `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, "0")}-${String(yesterday.getDate()).padStart(2, "0")}`;
-  }
-
-  checkDayRollover() {
-    const currentActualToday = this.getTodayDateString();
-    if (currentActualToday !== this.todayDateStr) {
-      this.todayDateStr = currentActualToday;
-      localStorage.setItem("c1_active_date", this.todayDateStr);
-      localStorage.setItem("c1_today_correct", "0");
-      this.todayCorrectCount = 0;
-      this.checkStreakExpiration();
-      this.updateStatsUI();
-      if (this.currentTopic === "daily") {
-        this.initTopic("daily");
-      }
-    }
-  }
-
-  checkStreakExpiration() {
-    if (!this.lastCompletedDate) {
-      this.streak = 0;
-      localStorage.setItem("c1_streak", "0");
-      return;
-    }
-    const yesterdayStr = this.getYesterdayDateString();
-    // If the last completed date was not yesterday and not today, streak has reset
-    if (this.lastCompletedDate !== yesterdayStr && this.lastCompletedDate !== this.todayDateStr) {
-      this.streak = 0;
-      localStorage.setItem("c1_streak", "0");
-    }
-  }
-
-  initDOMElements() {
-    // Top bar elements
-    this.topicNameEl = document.getElementById("currentTopicName");
-    this.streakCountEl = document.getElementById("streakCount");
-    this.dailyProgressTextEl = document.getElementById("dailyProgressText");
-    this.soundToggleBtn = document.getElementById("soundToggleBtn");
-    this.soundIconEl = document.getElementById("soundIcon");
-    this.sessionProgressBar = document.getElementById("sessionProgressBar");
-
-    // Navigation and Single Toggle Button
-    this.modeToggleBtn = document.getElementById("modeToggleBtn");
-    this.modeToggleIcon = document.getElementById("modeToggleIcon");
-    this.modeToggleLabel = document.getElementById("modeToggleLabel");
-    this.currentView = "quiz";
-    this.quizMain = document.getElementById("quizMain");
-    this.theoryView = document.getElementById("theoryView");
-    this.sessionProgressContainer = document.getElementById("sessionProgressContainer");
-
-    // Theory elements
-    this.theorySearchInput = document.getElementById("theorySearchInput");
-    this.theoryChips = document.getElementById("theoryChips");
-    this.theoryCardsContainer = document.getElementById("theoryCardsContainer");
-    this.currentTheoryFilter = "all";
-
-    // Question card elements
-    this.qCategoryTag = document.getElementById("qCategoryTag");
-    this.qCounterTag = document.getElementById("qCounterTag");
-    this.qInstruction = document.getElementById("qInstruction");
-    this.qPromptContext = document.getElementById("qPromptContext");
-    this.qPromptText = document.getElementById("qPromptText");
-    this.qKeyWord = document.getElementById("qKeyWord");
-    this.qQuestionText = document.getElementById("qQuestionText");
-    this.choiceOptionsContainer = document.getElementById("choiceOptionsContainer");
-    this.textInputContainer = document.getElementById("textInputContainer");
-    this.textAnswerInput = document.getElementById("textAnswerInput");
-    this.submitTextBtn = document.getElementById("submitTextBtn");
-
-    // Feedback Sheet
-    this.feedbackSheet = document.getElementById("feedbackSheet");
-    this.statusIcon = document.getElementById("statusIcon");
-    this.statusTitle = document.getElementById("statusTitle");
-    this.correctAnswerDisplay = document.getElementById("correctAnswerDisplay");
-    this.explanationText = document.getElementById("explanationText");
-    this.tipBox = document.getElementById("tipBox");
-    this.tipText = document.getElementById("tipText");
-    this.nextQuestionBtn = document.getElementById("nextQuestionBtn");
-
-    // Topic Modal
-    this.categoryMenuBtn = document.getElementById("categoryMenuBtn");
-    this.topicModal = document.getElementById("topicModal");
-    this.closeTopicModalBtn = document.getElementById("closeTopicModalBtn");
-    this.topicList = document.getElementById("topicList");
-    this.mistakesCountLabel = document.getElementById("mistakesCountLabel");
-
-    // Celebration Modal
-    this.celebrationOverlay = document.getElementById("celebrationOverlay");
-    this.celebrationStreakVal = document.getElementById("celebrationStreakVal");
-    this.closeCelebrationBtn = document.getElementById("closeCelebrationBtn");
-  }
-
-  attachEventListeners() {
     document.addEventListener("visibilitychange", () => {
-      if (!document.hidden) {
-        this.checkDayRollover();
+      if (!document.hidden && this.checkDayRollover()) {
+        this.renderHeaderAndMenu();
+        this.renderCurrentView();
       }
     });
     window.addEventListener("focus", () => {
-      this.checkDayRollover();
+      if (this.checkDayRollover()) {
+        this.renderHeaderAndMenu();
+        this.renderCurrentView();
+      }
     });
+  }
 
-    // Single Mode Toggle Button (Studovna <-> Testy)
-    this.modeToggleBtn.addEventListener("click", () => {
-      this.switchNavTab(this.currentView === "quiz" ? "theory" : "quiz");
-    });
+  getActiveLevelKey() {
+    return this.state.activeLevel === "b2" ? "b2" : "c1";
+  }
 
-    // Theory search and filters
-    if (this.theorySearchInput) {
-      this.theorySearchInput.addEventListener("input", () => this.renderTheory());
+  getBundle(levelKey = this.getActiveLevelKey()) {
+    return this.dataSources[levelKey];
+  }
+
+  getQuestionById(qid, levelKey = this.getActiveLevelKey()) {
+    const bundle = this.getBundle(levelKey);
+    if (!bundle) return null;
+    if (!this._questionIndexCache) this._questionIndexCache = {};
+    if (!this._questionIndexCache[levelKey]) {
+      const map = new Map();
+      for (const q of bundle.questions) map.set(q.id, q);
+      this._questionIndexCache[levelKey] = map;
     }
-    if (this.theoryChips) {
-      this.theoryChips.addEventListener("click", (e) => {
-        const chip = e.target.closest(".chip");
-        if (!chip) return;
-        this.theoryChips.querySelectorAll(".chip").forEach(c => c.classList.remove("active"));
-        chip.classList.add("active");
-        this.currentTheoryFilter = chip.dataset.category;
-        this.renderTheory();
+    return this._questionIndexCache[levelKey].get(qid) || null;
+  }
+
+  getLevelProgress(levelKey = this.getActiveLevelKey()) {
+    const today = getLocalISODate();
+    if (!this.state.levels[levelKey]) {
+      this.state.levels[levelKey] = createEmptyLevelProgress(this.getBundle(levelKey), today);
+    }
+    return this.state.levels[levelKey];
+  }
+
+  loadState() {
+    const today = getLocalISODate();
+    let parsed = null;
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) parsed = JSON.parse(raw);
+    } catch (e) {
+      console.error("Failed parsing saved Certin90 state:", e);
+    }
+
+    let legacyStreak = 0;
+    let legacyLastCompleted = null;
+    if (!parsed) {
+      for (const oldKey of LEGACY_STORAGE_KEYS) {
+        try {
+          const oldRaw = localStorage.getItem(oldKey);
+          if (oldRaw) {
+            const old = JSON.parse(oldRaw);
+            if (old && old.streak && old.streak.count) {
+              legacyStreak = old.streak.count;
+              legacyLastCompleted = old.streak.lastCompletedDate || null;
+            }
+          }
+        } catch (_) {}
+      }
+    }
+
+    this.state = {
+      activeLevel: parsed && (parsed.activeLevel === "b2" || parsed.activeLevel === "c1") ? parsed.activeLevel : null,
+      soundEnabled: parsed && typeof parsed.soundEnabled === "boolean" ? parsed.soundEnabled : true,
+      activeNavTab: parsed && parsed.activeNavTab === "theory" ? "theory" : "quiz",
+      activeMode: parsed && parsed.activeMode ? parsed.activeMode : "daily",
+      streak: parsed && parsed.streak ? parsed.streak : { count: legacyStreak, lastCompletedDate: legacyLastCompleted },
+      todayStats: parsed && parsed.todayStats ? parsed.todayStats : { date: today, uniqueCorrectIds: [] },
+      levels: {}
+    };
+
+    for (const lvl of ["b2", "c1"]) {
+      const savedLvl = parsed && parsed.levels && parsed.levels[lvl] ? parsed.levels[lvl] : null;
+      const bundle = this.getBundle(lvl);
+      if (savedLvl) {
+        this.state.levels[lvl] = {
+          startDate: savedLvl.startDate || today,
+          daily: savedLvl.daily || createDailySessionForDate(bundle, savedLvl.startDate || today, today),
+          topics: savedLvl.topics || {},
+          mistakes: Array.isArray(savedLvl.mistakes) ? savedLvl.mistakes : [],
+          allSession: savedLvl.allSession || null,
+          mistakesSession: savedLvl.mistakesSession || null,
+          diagnostic: savedLvl.diagnostic || { inProgress: null, lastResult: null }
+        };
+      } else {
+        this.state.levels[lvl] = createEmptyLevelProgress(bundle, today);
+      }
+    }
+
+    this.checkStreakExpiration(today);
+    if (this.state.activeLevel) {
+      this.saveState();
+    }
+  }
+
+  saveState() {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(this.state));
+    } catch (e) {
+      console.error("Failed saving state:", e);
+    }
+  }
+
+  checkStreakExpiration(today = getLocalISODate()) {
+    const yesterday = addDaysISO(today, -1);
+    const last = this.state.streak.lastCompletedDate;
+    if (last && last !== today && last !== yesterday && this.state.streak.count > 0) {
+      this.state.streak.count = 0;
+    }
+  }
+
+  checkDayRollover() {
+    const today = getLocalISODate();
+    let changed = false;
+
+    if (this.state.todayStats.date !== today) {
+      this.state.todayStats = { date: today, uniqueCorrectIds: [] };
+      this.checkStreakExpiration(today);
+      changed = true;
+    }
+
+    for (const lvl of ["b2", "c1"]) {
+      const lp = this.getLevelProgress(lvl);
+      if (!lp.daily || lp.daily.date !== today) {
+        lp.daily = createDailySessionForDate(this.getBundle(lvl), lp.startDate || today, today);
+        changed = true;
+      }
+    }
+
+    if (changed) this.saveState();
+    return changed;
+  }
+
+  ensureDailyForToday() {
+    const today = getLocalISODate();
+    const lvl = this.getActiveLevelKey();
+    const lp = this.getLevelProgress(lvl);
+    if (!lp.daily || lp.daily.date !== today || !Array.isArray(lp.daily.batchIds) || lp.daily.batchIds.length === 0) {
+      lp.daily = createDailySessionForDate(this.getBundle(lvl), lp.startDate || today, today);
+      this.saveState();
+    }
+    return lp.daily;
+  }
+
+  // ---- DOM Caching ----
+  cacheDOM() {
+    this.dom = {
+      categoryMenuBtn: document.getElementById("categoryMenuBtn"),
+      currentTopicName: document.getElementById("currentTopicName"),
+      modeToggleBtn: document.getElementById("modeToggleBtn"),
+      modeToggleIcon: document.getElementById("modeToggleIcon"),
+      modeToggleLabel: document.getElementById("modeToggleLabel"),
+      streakCount: document.getElementById("streakCount"),
+      dailyProgressText: document.getElementById("dailyProgressText"),
+      goalBadge: document.getElementById("goalBadge"),
+      soundToggleBtn: document.getElementById("soundToggleBtn"),
+      soundIcon: document.getElementById("soundIcon"),
+      sessionProgressContainer: document.getElementById("sessionProgressContainer"),
+      sessionProgressBar: document.getElementById("sessionProgressBar"),
+
+      quizMain: document.getElementById("quizMain"),
+      questionCard: document.getElementById("questionCard"),
+      qLevelTag: document.getElementById("qLevelTag"),
+      qCategoryTag: document.getElementById("qCategoryTag"),
+      qCounterTag: document.getElementById("qCounterTag"),
+      phaseBanner: document.getElementById("phaseBanner"),
+      phaseBannerText: document.getElementById("phaseBannerText"),
+      qInstruction: document.getElementById("qInstruction"),
+      qPromptContext: document.getElementById("qPromptContext"),
+      qPromptText: document.getElementById("qPromptText"),
+      qKeyWord: document.getElementById("qKeyWord"),
+      qQuestionText: document.getElementById("qQuestionText"),
+      choiceOptionsContainer: document.getElementById("choiceOptionsContainer"),
+      textInputContainer: document.getElementById("textInputContainer"),
+      textAnswerInput: document.getElementById("textAnswerInput"),
+      submitTextBtn: document.getElementById("submitTextBtn"),
+
+      stateCard: document.getElementById("stateCard"),
+      stateIcon: document.getElementById("stateIcon"),
+      stateTitle: document.getElementById("stateTitle"),
+      stateDesc: document.getElementById("stateDesc"),
+      stateStatsPill: document.getElementById("stateStatsPill"),
+      stateScoreText: document.getElementById("stateScoreText"),
+      stateActions: document.getElementById("stateActions"),
+
+      diagnosticResultCard: document.getElementById("diagnosticResultCard"),
+      diagResultTitle: document.getElementById("diagResultTitle"),
+      diagResultSubtitle: document.getElementById("diagResultSubtitle"),
+      diagOverallScore: document.getElementById("diagOverallScore"),
+      diagRecommendations: document.getElementById("diagRecommendations"),
+      diagBreakdownList: document.getElementById("diagBreakdownList"),
+      diagStartWeakestBtn: document.getElementById("diagStartWeakestBtn"),
+      diagStartDailyBtn: document.getElementById("diagStartDailyBtn"),
+
+      theoryView: document.getElementById("theoryView"),
+      theoryHeaderTitle: document.getElementById("theoryHeaderTitle"),
+      theoryLevelBadge: document.getElementById("theoryLevelBadge"),
+      theoryHeaderSub: document.getElementById("theoryHeaderSub"),
+      theorySearchInput: document.getElementById("theorySearchInput"),
+      theoryChips: document.getElementById("theoryChips"),
+      theoryCardsContainer: document.getElementById("theoryCardsContainer"),
+
+      feedbackSheet: document.getElementById("feedbackSheet"),
+      statusIcon: document.getElementById("statusIcon"),
+      statusTitle: document.getElementById("statusTitle"),
+      correctAnswerDisplay: document.getElementById("correctAnswerDisplay"),
+      explanationText: document.getElementById("explanationText"),
+      tipBox: document.getElementById("tipBox"),
+      tipText: document.getElementById("tipText"),
+      nextQuestionBtn: document.getElementById("nextQuestionBtn"),
+
+      menuOverlay: document.getElementById("menuOverlay"),
+      closeMenuBtn: document.getElementById("closeMenuBtn"),
+      levelBtnB2: document.getElementById("levelBtnB2"),
+      levelBtnC1: document.getElementById("levelBtnC1"),
+      dailyTopicBtn: document.getElementById("dailyTopicBtn"),
+      dailyMenuTitle: document.getElementById("dailyMenuTitle"),
+      dailyPackDateLabel: document.getElementById("dailyPackDateLabel"),
+      dailyStatusPill: document.getElementById("dailyStatusPill"),
+      diagnosticTopicBtn: document.getElementById("diagnosticTopicBtn"),
+      diagnosticStatusLabel: document.getElementById("diagnosticStatusLabel"),
+      diagnosticLastPill: document.getElementById("diagnosticLastPill"),
+      mistakesTopicItem: document.getElementById("mistakesTopicItem"),
+      mistakesCountLabel: document.getElementById("mistakesCountLabel"),
+      mistakesPill: document.getElementById("mistakesPill"),
+      allTopicBtn: document.getElementById("allTopicBtn"),
+      allMenuTitle: document.getElementById("allMenuTitle"),
+      categoryTopicList: document.getElementById("categoryTopicList"),
+      menuSoundToggleBtn: document.getElementById("menuSoundToggleBtn"),
+      resetLevelTitle: document.getElementById("resetLevelTitle"),
+      resetLevelBtn: document.getElementById("resetLevelBtn"),
+
+      onboardingOverlay: document.getElementById("onboardingOverlay"),
+      celebrationOverlay: document.getElementById("celebrationOverlay"),
+      celebrationStreakVal: document.getElementById("celebrationStreakVal"),
+      closeCelebrationBtn: document.getElementById("closeCelebrationBtn")
+    };
+  }
+
+  bindEvents() {
+    this.dom.categoryMenuBtn.addEventListener("click", () => {
+      this.renderMenuOverlay();
+      this.dom.menuOverlay.classList.add("visible");
+    });
+
+    this.dom.closeMenuBtn.addEventListener("click", () => {
+      this.dom.menuOverlay.classList.remove("visible");
+    });
+
+    this.dom.menuOverlay.addEventListener("click", (e) => {
+      if (e.target === this.dom.menuOverlay) {
+        this.dom.menuOverlay.classList.remove("visible");
+      }
+    });
+
+    this.dom.modeToggleBtn.addEventListener("click", () => {
+      const nextTab = this.state.activeNavTab === "quiz" ? "theory" : "quiz";
+      this.switchNavTab(nextTab);
+    });
+
+    this.dom.soundToggleBtn.addEventListener("click", () => this.toggleSound());
+    this.dom.menuSoundToggleBtn.addEventListener("click", () => this.toggleSound());
+
+    // Level Switcher inside Settings Menu
+    this.dom.levelBtnB2.addEventListener("click", () => this.switchLevel("b2"));
+    this.dom.levelBtnC1.addEventListener("click", () => this.switchLevel("c1"));
+
+    // Primary Modes inside Menu
+    this.dom.dailyTopicBtn.addEventListener("click", () => this.selectMode("daily"));
+    this.dom.diagnosticTopicBtn.addEventListener("click", () => this.selectMode("diagnostic"));
+    this.dom.mistakesTopicItem.addEventListener("click", () => this.selectMode("mistakes"));
+    this.dom.allTopicBtn.addEventListener("click", () => this.selectMode("all"));
+
+    this.dom.resetLevelBtn.addEventListener("click", () => this.confirmResetLevel());
+
+    // Onboarding Level Pickers
+    document.querySelectorAll(".onboarding-level-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const chosen = btn.dataset.level === "b2" ? "b2" : "c1";
+        this.dom.onboardingOverlay.classList.remove("visible");
+        this.state.activeLevel = chosen;
+        this.state.activeMode = "diagnostic";
+        this.state.activeNavTab = "quiz";
+        this.startNewDiagnostic();
+        this.saveState();
+        this.renderHeaderAndMenu();
+        this.renderCurrentView();
       });
-    }
-
-    // Sound toggle
-    this.soundToggleBtn.addEventListener("click", () => {
-      this.soundEnabled = !this.soundEnabled;
-      localStorage.setItem("c1_sound_enabled", this.soundEnabled);
-      this.soundIconEl.textContent = this.soundEnabled ? "🔊" : "🔇";
     });
-    this.soundIconEl.textContent = this.soundEnabled ? "🔊" : "🔇";
 
-    // Text submit
-    this.submitTextBtn.addEventListener("click", () => this.handleTextSubmit());
-    this.textAnswerInput.addEventListener("keydown", (e) => {
+    // Theory Search
+    this.dom.theorySearchInput.addEventListener("input", () => {
+      this.renderTheory();
+    });
+
+    // Submit text answer
+    this.dom.submitTextBtn.addEventListener("click", () => {
+      this.handleTextSubmit();
+    });
+    this.dom.textAnswerInput.addEventListener("keydown", (e) => {
       if (e.key === "Enter") {
         e.preventDefault();
-        if (this.isAnswerSubmitted) {
-          this.loadNextQuestion();
+        if (this.dom.feedbackSheet.classList.contains("visible")) {
+          this.nextQuestion();
         } else {
           this.handleTextSubmit();
         }
       }
     });
 
-    // Next question button
-    this.nextQuestionBtn.addEventListener("click", () => {
-      this.loadNextQuestion();
+    // Next Question button
+    this.dom.nextQuestionBtn.addEventListener("click", () => {
+      this.nextQuestion();
     });
 
-    // Topic menu open/close
-    this.categoryMenuBtn.addEventListener("click", () => {
-      this.updateMistakesCountUI();
-      this.topicModal.classList.add("visible");
+    // Celebration Close
+    this.dom.closeCelebrationBtn.addEventListener("click", () => {
+      this.dom.celebrationOverlay.classList.remove("visible");
+    });
+    this.dom.celebrationOverlay.addEventListener("click", (e) => {
+      if (e.target === this.dom.celebrationOverlay) {
+        this.dom.celebrationOverlay.classList.remove("visible");
+      }
     });
 
-    this.closeTopicModalBtn.addEventListener("click", () => {
-      this.topicModal.classList.remove("visible");
+    // Diagnostic action buttons
+    this.dom.diagStartDailyBtn.addEventListener("click", () => {
+      this.selectMode("daily");
     });
 
-    // Topic selection
-    this.topicList.addEventListener("click", (e) => {
-      const btn = e.target.closest(".topic-item");
-      if (!btn) return;
-      const topic = btn.dataset.topic;
-      this.initTopic(topic);
-      this.topicModal.classList.remove("visible");
-      this.highlightActiveTopicBtn(btn);
-    });
-
-    // Close Celebration
-    this.closeCelebrationBtn.addEventListener("click", () => {
-      this.celebrationOverlay.classList.remove("visible");
-    });
-
-    // Global keyboard navigation (Space / Enter for next)
-    window.addEventListener("keydown", (e) => {
-      if ((e.key === "Enter" || e.key === " ") && this.feedbackSheet.classList.contains("visible")) {
-        // If not typing in input
-        if (document.activeElement !== this.textAnswerInput) {
-          e.preventDefault();
-          this.loadNextQuestion();
-        }
+    // Global Enter when feedback sheet open
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && this.dom.feedbackSheet.classList.contains("visible")) {
+        e.preventDefault();
+        this.nextQuestion();
       }
     });
   }
 
+  openOnboardingModal() {
+    this.dom.onboardingOverlay.classList.add("visible");
+  }
+
+  toggleSound() {
+    this.state.soundEnabled = !this.state.soundEnabled;
+    this.saveState();
+    this.updateSoundUI();
+  }
+
+  updateSoundUI() {
+    const on = this.state.soundEnabled;
+    this.dom.soundIcon.textContent = on ? "🔊" : "🔇";
+    this.dom.soundToggleBtn.style.opacity = on ? "1" : "0.55";
+    this.dom.menuSoundToggleBtn.textContent = on ? "Zapnuto" : "Vypnuto";
+  }
+
+  switchLevel(newLevel) {
+    if (newLevel !== "b2" && newLevel !== "c1") return;
+    if (this.state.activeLevel === newLevel) return;
+    this.hideFeedbackSheet();
+    this.state.activeLevel = newLevel;
+    // Preserve daily vs diagnostic vs mistakes cleanly; reset category if invalid on target level
+    const bundle = this.getBundle(newLevel);
+    const validCats = new Set(bundle.topics.map((t) => t.id));
+    if (!["daily", "all", "mistakes", "diagnostic"].includes(this.state.activeMode) && !validCats.has(this.state.activeMode)) {
+      this.state.activeMode = "daily";
+    }
+    this.ensureDailyForToday();
+    this.saveState();
+    this.renderHeaderAndMenu();
+    this.renderMenuOverlay();
+    this.renderCurrentView();
+  }
+
+  selectMode(modeKey) {
+    this.hideFeedbackSheet();
+    this.state.activeMode = modeKey;
+    this.state.activeNavTab = "quiz";
+
+    const lvl = this.getActiveLevelKey();
+    const lp = this.getLevelProgress(lvl);
+    const bundle = this.getBundle(lvl);
+
+    if (modeKey === "diagnostic") {
+      if (!lp.diagnostic.inProgress) {
+        // Start fresh diagnostic if none running (or allow launching directly)
+        this.startNewDiagnostic();
+      }
+    } else if (modeKey === "mistakes") {
+      lp.mistakesSession = {
+        queue: shuffleArray(lp.mistakes),
+        cursor: 0,
+        wrongThisPass: []
+      };
+    } else if (modeKey === "all") {
+      this.ensureAllSession();
+    } else if (modeKey !== "daily") {
+      // Category mode (X / 130)
+      if (!lp.topics[modeKey]) {
+        lp.topics[modeKey] = createTopicSession(bundle, modeKey, []);
+      }
+    }
+
+    this.saveState();
+    this.dom.menuOverlay.classList.remove("visible");
+    this.renderHeaderAndMenu();
+    this.renderCurrentView();
+  }
+
+  startNewDiagnostic() {
+    const lvl = this.getActiveLevelKey();
+    const lp = this.getLevelProgress(lvl);
+    const bundle = this.getBundle(lvl);
+    lp.diagnostic.inProgress = {
+      queue: [...bundle.diagnosticIds],
+      cursor: 0,
+      answers: {}
+    };
+  }
+
+  ensureAllSession() {
+    const lvl = this.getActiveLevelKey();
+    const lp = this.getLevelProgress(lvl);
+    const bundle = this.getBundle(lvl);
+
+    if (lp.allSession && lp.allSession.queue && lp.allSession.cursor < lp.allSession.queue.length) {
+      return lp.allSession;
+    }
+
+    // Prioritise unseen questions across topics
+    const masteredSet = new Set();
+    for (const catId of Object.keys(lp.topics || {})) {
+      const ts = lp.topics[catId];
+      if (ts && Array.isArray(ts.masteredIds)) {
+        for (const id of ts.masteredIds) masteredSet.add(id);
+      }
+    }
+
+    const unseen = bundle.questions.filter((q) => !masteredSet.has(q.id)).map((q) => q.id);
+    const pool = unseen.length > 0 ? unseen : bundle.questions.map((q) => q.id);
+    lp.allSession = {
+      queue: shuffleArray(pool),
+      cursor: 0
+    };
+    return lp.allSession;
+  }
+
+  confirmResetLevel() {
+    const lvl = this.getActiveLevelKey();
+    const label = lvl === "b2" ? "B2 First (FCE)" : "C1 Advanced (CAE)";
+    const ok = window.confirm(`Opravdu chceš vymazat postup okruhů (0/130) a dnešní dávku pro úroveň ${label}?`);
+    if (!ok) return;
+
+    const today = getLocalISODate();
+    this.state.levels[lvl] = createEmptyLevelProgress(this.getBundle(lvl), today);
+    this.state.activeMode = "daily";
+    this.hideFeedbackSheet();
+    this.saveState();
+    this.renderHeaderAndMenu();
+    this.renderMenuOverlay();
+    this.renderCurrentView();
+  }
+
   switchNavTab(tabName) {
-    this.currentView = tabName;
-    if (tabName === "quiz") {
-      this.modeToggleBtn.classList.remove("in-theory");
-      this.modeToggleIcon.textContent = "📖";
-      this.modeToggleLabel.textContent = "Studovna";
-      this.quizMain.style.display = "flex";
-      this.theoryView.style.display = "none";
-      this.sessionProgressContainer.style.display = "block";
+    this.state.activeNavTab = tabName;
+    this.saveState();
+    this.hideFeedbackSheet();
+    this.renderHeaderAndMenu();
+    this.renderCurrentView();
+  }
+
+  // ---- Header, Menu & Settings Rendering ----
+  renderHeaderAndMenu() {
+    const lvl = this.getActiveLevelKey();
+    const lvlUpper = lvl.toUpperCase();
+    const lp = this.getLevelProgress(lvl);
+    const daily = this.ensureDailyForToday();
+    const bundle = this.getBundle(lvl);
+
+    // Compact header label
+    const mode = this.state.activeMode;
+    let label = `Den ${daily.dayIndex} · ${lvlUpper}`;
+    if (mode === "diagnostic") label = `Test · ${lvlUpper}`;
+    else if (mode === "mistakes") label = `Chyby · ${lvlUpper}`;
+    else if (mode === "all") label = `Vše · ${lvlUpper}`;
+    else if (mode !== "daily") {
+      const meta = bundle.topics.find((t) => t.id === mode);
+      const ts = lp.topics[mode];
+      const done = ts ? ts.masteredIds.length : 0;
+      label = meta ? `${meta.shortLabel} (${done}/130)` : lvlUpper;
+    }
+    this.dom.currentTopicName.textContent = label;
+
+    // Nav Toggle Button
+    if (this.state.activeNavTab === "theory") {
+      this.dom.modeToggleIcon.textContent = "🎯";
+      this.dom.modeToggleLabel.textContent = "Do testů";
     } else {
-      this.modeToggleBtn.classList.add("in-theory");
-      this.modeToggleIcon.textContent = "🎯";
-      this.modeToggleLabel.textContent = "Do testu";
-      this.quizMain.style.display = "none";
-      this.theoryView.style.display = "flex";
-      this.sessionProgressContainer.style.display = "none";
+      this.dom.modeToggleIcon.textContent = "📖";
+      this.dom.modeToggleLabel.textContent = "Studovna";
+    }
+
+    // Streak & Daily Unique Correct Goal (out of 20 across ALL modes!)
+    this.dom.streakCount.textContent = this.state.streak.count;
+    const todayCorrectCount = this.state.todayStats.uniqueCorrectIds.length;
+    this.dom.dailyProgressText.textContent = `${Math.min(todayCorrectCount, 20)}/20`;
+    if (todayCorrectCount >= 20) {
+      this.dom.goalBadge.classList.add("goal-completed");
+    } else {
+      this.dom.goalBadge.classList.remove("goal-completed");
+    }
+
+    this.updateSoundUI();
+  }
+
+  renderMenuOverlay() {
+    const lvl = this.getActiveLevelKey();
+    const lp = this.getLevelProgress(lvl);
+    const daily = this.ensureDailyForToday();
+    const bundle = this.getBundle(lvl);
+    const todayLabel = formatCzechDateLabel(getLocalISODate());
+
+    this.dom.levelBtnB2.classList.toggle("active", lvl === "b2");
+    this.dom.levelBtnC1.classList.toggle("active", lvl === "c1");
+
+    // Highlight active mode button
+    document.querySelectorAll(".topic-item").forEach((el) => {
+      el.classList.toggle("active", el.dataset.topic === this.state.activeMode);
+    });
+
+    // Daily status
+    const dailyCorrectCount = daily.correctIds.length;
+    const dailyTotal = daily.batchIds.length || 20;
+    this.dom.dailyMenuTitle.textContent = `Dnešní dávka (Den ${daily.dayIndex} / 90)`;
+    if (daily.phase === "completed") {
+      this.dom.dailyPackDateLabel.textContent = `Dnes (${todayLabel}) hotovo! Všech 20/20 opraveno.`;
+      this.dom.dailyStatusPill.textContent = "20/20 ✓";
+      this.dom.dailyStatusPill.classList.add("is-done");
+    } else if (daily.phase === "repair_prompt" || daily.phase === "repair") {
+      this.dom.dailyPackDateLabel.textContent = `Oprava zbývajících chyb (${daily.currentWrongIds.length + (daily.queue.length - daily.cursor)} zbývá)`;
+      this.dom.dailyStatusPill.textContent = `${dailyCorrectCount}/${dailyTotal}`;
+      this.dom.dailyStatusPill.classList.remove("is-done");
+    } else {
+      this.dom.dailyPackDateLabel.textContent = `Dnes ${todayLabel} · ${dailyCorrectCount}/${dailyTotal} správně`;
+      this.dom.dailyStatusPill.textContent = `${dailyCorrectCount}/${dailyTotal}`;
+      this.dom.dailyStatusPill.classList.remove("is-done");
+    }
+
+    // Diagnostic status
+    if (lp.diagnostic.inProgress) {
+      this.dom.diagnosticStatusLabel.textContent = `Rozpracováno: otázka ${lp.diagnostic.inProgress.cursor + 1} / 21`;
+      this.dom.diagnosticLastPill.textContent = "Pokračovat";
+      this.dom.diagnosticLastPill.classList.remove("is-done");
+    } else if (lp.diagnostic.lastResult) {
+      const r = lp.diagnostic.lastResult;
+      this.dom.diagnosticStatusLabel.textContent = `Poslední výsledek: ${r.totalCorrect}/${r.totalQuestions} (${formatCzechDateLabel(r.date)}) · Lze opakovat`;
+      this.dom.diagnosticLastPill.textContent = `${Math.round((r.totalCorrect / r.totalQuestions) * 100)}%`;
+      this.dom.diagnosticLastPill.classList.add("is-done");
+    } else {
+      this.dom.diagnosticStatusLabel.textContent = "Dobrovolný rozřazovací test (3 z každého okruhu)";
+      this.dom.diagnosticLastPill.textContent = "Spustit";
+      this.dom.diagnosticLastPill.classList.remove("is-done");
+    }
+
+    // Mistakes status
+    const mCount = lp.mistakes.length;
+    this.dom.mistakesCountLabel.textContent = mCount === 0
+      ? "Žádné uložené chyby pro tento level"
+      : `${mCount} chybných otázek k procvičení`;
+    this.dom.mistakesPill.textContent = `${mCount}`;
+
+    this.dom.allMenuTitle.textContent = `Kompletní ${lvl.toUpperCase()} databáze (910 otázek)`;
+    this.dom.resetLevelTitle.textContent = `🗑️ Reset postupu pro úroveň ${lvl.toUpperCase()}`;
+
+    // Render 7 Category Items with X / 130 progress bars
+    this.dom.categoryTopicList.innerHTML = "";
+    for (const topic of bundle.topics) {
+      const ts = lp.topics[topic.id];
+      const doneCount = ts ? ts.masteredIds.length : 0;
+      const pct = Math.round((doneCount / topic.total) * 100);
+      const isMastered = doneCount >= topic.total;
+
+      const btn = document.createElement("button");
+      btn.className = `topic-item${this.state.activeMode === topic.id ? " active" : ""}`;
+      btn.dataset.topic = topic.id;
+      btn.innerHTML = `
+        <span class="topic-icon">${CATEGORY_ICONS[topic.id] || "📘"}</span>
+        <div class="topic-info">
+          <strong>${topic.label}</strong>
+          <small>${doneCount} / ${topic.total} zvládnuto (${pct}%)</small>
+          <div class="topic-progress-wrap">
+            <div class="topic-progress-fill${isMastered ? " is-mastered" : ""}" style="width: ${pct}%;"></div>
+          </div>
+        </div>
+        <span class="topic-status-pill${isMastered ? " is-done" : ""}">${isMastered ? "130/130 🏆" : `${doneCount}/130`}</span>
+      `;
+      btn.addEventListener("click", () => this.selectMode(topic.id));
+      this.dom.categoryTopicList.appendChild(btn);
+    }
+  }
+
+  // ---- Main View Router ----
+  renderCurrentView() {
+    if (this.state.activeNavTab === "theory") {
+      this.dom.quizMain.style.display = "none";
+      this.dom.sessionProgressContainer.style.display = "none";
+      this.dom.theoryView.style.display = "block";
+      this.renderTheorySectionChrome();
       this.renderTheory();
+      return;
+    }
+
+    this.dom.theoryView.style.display = "none";
+    this.dom.quizMain.style.display = "flex";
+    this.dom.sessionProgressContainer.style.display = "block";
+
+    this.renderQuizModeView();
+  }
+
+  renderQuizModeView() {
+    const mode = this.state.activeMode;
+    const lvl = this.getActiveLevelKey();
+    const lp = this.getLevelProgress(lvl);
+    const bundle = this.getBundle(lvl);
+
+    // Hide all subcards first
+    this.dom.questionCard.style.display = "none";
+    this.dom.stateCard.style.display = "none";
+    this.dom.diagnosticResultCard.style.display = "none";
+
+    if (mode === "daily") {
+      const daily = this.ensureDailyForToday();
+      if (daily.phase === "completed") {
+        this.showDailyCompletedState(daily);
+        return;
+      }
+      if (daily.phase === "repair_prompt") {
+        this.showDailyRepairPrompt(daily);
+        return;
+      }
+      const qid = daily.queue[daily.cursor];
+      const q = this.getQuestionById(qid, lvl);
+      if (!q) {
+        this.showDailyCompletedState(daily);
+        return;
+      }
+      this.renderQuestionCard(q, {
+        counterText: daily.phase === "repair"
+          ? `Oprava ${daily.cursor + 1} / ${daily.queue.length}`
+          : `${daily.correctIds.length + 1} / ${daily.batchIds.length}`,
+        bannerText: daily.phase === "repair"
+          ? `🛠️ Oprava chyb (${daily.correctIds.length}/${daily.batchIds.length} hotovo)`
+          : `📅 Den ${daily.dayIndex}/90 · ${daily.correctIds.length}/${daily.batchIds.length} hotovo`,
+        progressPct: (daily.correctIds.length / (daily.batchIds.length || 20)) * 100
+      });
+      return;
+    }
+
+    if (mode === "diagnostic") {
+      const diag = lp.diagnostic;
+      if (diag.inProgress && diag.inProgress.cursor < diag.inProgress.queue.length) {
+        const qid = diag.inProgress.queue[diag.inProgress.cursor];
+        const q = this.getQuestionById(qid, lvl);
+        this.renderQuestionCard(q, {
+          counterText: `Test ${diag.inProgress.cursor + 1} / 21`,
+          bannerText: "🧭 Vstupní diagnostický test (3 otázky z každého okruhu)",
+          progressPct: (diag.inProgress.cursor / 21) * 100
+        });
+        return;
+      }
+      if (diag.lastResult) {
+        this.renderDiagnosticResultCard(diag.lastResult);
+        return;
+      }
+      this.startNewDiagnostic();
+      this.saveState();
+      this.renderQuizModeView();
+      return;
+    }
+
+    if (mode === "mistakes") {
+      if (lp.mistakes.length === 0) {
+        this.showEmptyMistakesState();
+        return;
+      }
+      if (!lp.mistakesSession || !lp.mistakesSession.queue) {
+        lp.mistakesSession = { queue: shuffleArray(lp.mistakes), cursor: 0, wrongThisPass: [] };
+      }
+      const ms = lp.mistakesSession;
+      if (ms.cursor >= ms.queue.length) {
+        if (ms.wrongThisPass && ms.wrongThisPass.length > 0) {
+          ms.queue = shuffleArray(ms.wrongThisPass);
+          ms.wrongThisPass = [];
+          ms.cursor = 0;
+        } else {
+          this.showEmptyMistakesState();
+          return;
+        }
+      }
+      const q = this.getQuestionById(ms.queue[ms.cursor], lvl);
+      if (!q) {
+        this.showEmptyMistakesState();
+        return;
+      }
+      this.renderQuestionCard(q, {
+        counterText: `Chyba ${ms.cursor + 1} / ${ms.queue.length}`,
+        bannerText: `❌ Opáčko chyb (${lp.mistakes.length} v bance)`,
+        progressPct: (ms.cursor / ms.queue.length) * 100
+      });
+      return;
+    }
+
+    if (mode === "all") {
+      const allS = this.ensureAllSession();
+      const q = this.getQuestionById(allS.queue[allS.cursor], lvl);
+      this.renderQuestionCard(q, {
+        counterText: `Mix ${allS.cursor + 1} / ${allS.queue.length}`,
+        bannerText: `🎲 Kompletní ${lvl.toUpperCase()} databáze (910 otázek)`,
+        progressPct: (allS.cursor / allS.queue.length) * 100
+      });
+      return;
+    }
+
+    // Specific Topic Category (130 unique questions)
+    if (!lp.topics[mode]) {
+      lp.topics[mode] = createTopicSession(bundle, mode, []);
+    }
+    const ts = lp.topics[mode];
+    const meta = bundle.topics.find((t) => t.id === mode);
+    const totalCat = meta ? meta.total : 130;
+
+    if (ts.phase === "mastered" || ts.masteredIds.length >= totalCat) {
+      ts.phase = "mastered";
+      this.showTopicMasteredState(mode, meta, ts);
+      return;
+    }
+
+    if (ts.phase === "repair_prompt") {
+      this.showTopicRepairPrompt(mode, meta, ts);
+      return;
+    }
+
+    const qid = ts.queue[ts.cursor];
+    const q = this.getQuestionById(qid, lvl);
+    if (!q) {
+      if (ts.currentWrongIds.length > 0) {
+        ts.phase = "repair_prompt";
+        this.showTopicRepairPrompt(mode, meta, ts);
+      } else {
+        ts.phase = "mastered";
+        this.showTopicMasteredState(mode, meta, ts);
+      }
+      return;
+    }
+
+    this.renderQuestionCard(q, {
+      counterText: `${ts.masteredIds.length + 1} / ${totalCat}`,
+      bannerText: ts.phase === "repair"
+        ? `🛠️ Oprava chyb okruhu (${ts.masteredIds.length}/${totalCat} zvládnuto)`
+        : null,
+      progressPct: (ts.masteredIds.length / totalCat) * 100
+    });
+  }
+
+  renderQuestionCard(q, metaInfo) {
+    this.currentQuestionObj = q;
+    const lvlUpper = (q.level || this.getActiveLevelKey()).toUpperCase();
+
+    this.dom.questionCard.style.display = "block";
+    this.dom.qLevelTag.textContent = lvlUpper;
+    this.dom.qLevelTag.classList.toggle("is-b2", lvlUpper === "B2");
+    this.dom.qCategoryTag.textContent = q.categoryLabel;
+    this.dom.qCounterTag.textContent = metaInfo.counterText || "";
+    this.dom.sessionProgressBar.style.width = `${Math.min(100, Math.max(0, metaInfo.progressPct || 0))}%`;
+
+    if (metaInfo.bannerText) {
+      this.dom.phaseBannerText.textContent = metaInfo.bannerText;
+      this.dom.phaseBanner.style.display = "flex";
+    } else {
+      this.dom.phaseBanner.style.display = "none";
+    }
+
+    this.dom.qInstruction.textContent = q.instruction;
+
+    if (q.promptContext) {
+      this.dom.qPromptContext.style.display = "block";
+      this.dom.qPromptText.textContent = q.promptContext;
+      this.dom.qKeyWord.textContent = q.keyWord || "";
+    } else {
+      this.dom.qPromptContext.style.display = "none";
+    }
+
+    this.dom.qQuestionText.innerHTML = q.question.replace(
+      /_{3,}/g,
+      '<span class="blank-highlight">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>'
+    );
+
+    if (q.type === "choice") {
+      this.dom.choiceOptionsContainer.style.display = "flex";
+      this.dom.textInputContainer.style.display = "none";
+      this.renderChoiceOptions(q);
+    } else {
+      this.dom.choiceOptionsContainer.style.display = "none";
+      this.dom.textInputContainer.style.display = "flex";
+      this.dom.textAnswerInput.value = "";
+      this.dom.textAnswerInput.disabled = false;
+      this.dom.submitTextBtn.disabled = false;
+      this.dom.textAnswerInput.className = "c1-input";
+      setTimeout(() => {
+        if (!this.dom.menuOverlay.classList.contains("visible") &&
+            !this.dom.onboardingOverlay.classList.contains("visible")) {
+          this.dom.textAnswerInput.focus();
+        }
+      }, 60);
+    }
+  }
+
+  renderChoiceOptions(q) {
+    this.dom.choiceOptionsContainer.innerHTML = "";
+    const letters = ["A", "B", "C", "D"];
+    q.options.forEach((optText, idx) => {
+      const btn = document.createElement("button");
+      btn.className = "option-btn";
+      btn.innerHTML = `<span class="option-letter">${letters[idx]}</span> <span>${optText}</span>`;
+      btn.addEventListener("click", () => this.handleChoiceSubmit(idx, btn));
+      this.dom.choiceOptionsContainer.appendChild(btn);
+    });
+  }
+
+  // ---- State Screens (Daily Repair Prompt, Daily Done, Topic Mastered, Empty Mistakes, Diagnostic Result) ----
+  showDailyRepairPrompt(daily) {
+    const remaining = daily.currentWrongIds.length;
+    const done = daily.correctIds.length;
+    const total = daily.batchIds.length || 20;
+
+    this.dom.sessionProgressBar.style.width = `${(done / total) * 100}%`;
+    this.dom.stateCard.style.display = "block";
+    this.dom.stateIcon.textContent = "🛠️";
+    this.dom.stateTitle.textContent = "Dnešních 20 otázek dokončeno";
+    this.dom.stateDesc.textContent =
+      `Máš správně ${done} z ${total}. Pokračuj v opravě zbývajících ${remaining} chybných otázek — každá opravená se ti přičte k dnešním ${done} a přiblíží tě k dennímu streaku!`;
+    this.dom.stateStatsPill.style.display = "inline-block";
+    this.dom.stateScoreText.textContent = `${done} / ${total} správně · zbývá opravit ${remaining}`;
+
+    this.dom.stateActions.innerHTML = "";
+    const repairBtn = document.createElement("button");
+    repairBtn.className = "primary-btn";
+    repairBtn.textContent = `Opravit zbývající chyby (${remaining}) 🛠️`;
+    repairBtn.addEventListener("click", () => {
+      daily.queue = shuffleArray(daily.currentWrongIds);
+      daily.currentWrongIds = [];
+      daily.cursor = 0;
+      daily.phase = "repair";
+      this.saveState();
+      this.renderHeaderAndMenu();
+      this.renderQuizModeView();
+    });
+    this.dom.stateActions.appendChild(repairBtn);
+
+    const menuBtn = document.createElement("button");
+    menuBtn.className = "secondary-btn";
+    menuBtn.textContent = "Vybrat jiný okruh / Studovna";
+    menuBtn.addEventListener("click", () => {
+      this.renderMenuOverlay();
+      this.dom.menuOverlay.classList.add("visible");
+    });
+    this.dom.stateActions.appendChild(menuBtn);
+  }
+
+  showDailyCompletedState(daily) {
+    const lvlUpper = this.getActiveLevelKey().toUpperCase();
+    this.dom.sessionProgressBar.style.width = "100%";
+    this.dom.stateCard.style.display = "block";
+    this.dom.stateIcon.textContent = "🎉";
+    this.dom.stateTitle.textContent = `Den ${daily.dayIndex}/90 (${lvlUpper}) splněn!`;
+    this.dom.stateDesc.textContent =
+      "Všech 20 dnešních otázek máš bezchybně vyřešených a opravených. Pokud chceš trénovat dál, vyber si konkrétní okruh ze 130 otázek nebo si otevři Studovnu.";
+    this.dom.stateStatsPill.style.display = "inline-block";
+    this.dom.stateScoreText.textContent = "20 / 20 dokončeno ✓";
+
+    this.dom.stateActions.innerHTML = "";
+    const openMenuBtn = document.createElement("button");
+    openMenuBtn.className = "primary-btn";
+    openMenuBtn.textContent = "Procvičit okruhy (130 otázek / okruh) 🎯";
+    openMenuBtn.addEventListener("click", () => {
+      this.renderMenuOverlay();
+      this.dom.menuOverlay.classList.add("visible");
+    });
+    this.dom.stateActions.appendChild(openMenuBtn);
+
+    const theoryBtn = document.createElement("button");
+    theoryBtn.className = "secondary-btn";
+    theoryBtn.textContent = "Otevřít Studovnu & Taháky 📖";
+    theoryBtn.addEventListener("click", () => this.switchNavTab("theory"));
+    this.dom.stateActions.appendChild(theoryBtn);
+  }
+
+  showTopicRepairPrompt(catId, meta, ts) {
+    const total = meta ? meta.total : 130;
+    const remaining = ts.currentWrongIds.length;
+    const done = ts.masteredIds.length;
+
+    this.dom.sessionProgressBar.style.width = `${(done / total) * 100}%`;
+    this.dom.stateCard.style.display = "block";
+    this.dom.stateIcon.textContent = "🛠️";
+    this.dom.stateTitle.textContent = `${meta ? meta.label : catId} — Oprava chyb`;
+    this.dom.stateDesc.textContent =
+      `Prošel jsi všechny nové otázky v tomto okruhu. Zbývá opravit ${remaining} chybných, aby bylo téma kompletně zvládnuto (130/130).`;
+    this.dom.stateStatsPill.style.display = "inline-block";
+    this.dom.stateScoreText.textContent = `${done} / ${total} zvládnuto`;
+
+    this.dom.stateActions.innerHTML = "";
+    const repairBtn = document.createElement("button");
+    repairBtn.className = "primary-btn";
+    repairBtn.textContent = `Opravit zbývající chyby (${remaining}) 🛠️`;
+    repairBtn.addEventListener("click", () => {
+      ts.queue = shuffleArray(ts.currentWrongIds);
+      ts.currentWrongIds = [];
+      ts.cursor = 0;
+      ts.phase = "repair";
+      this.saveState();
+      this.renderQuizModeView();
+    });
+    this.dom.stateActions.appendChild(repairBtn);
+  }
+
+  showTopicMasteredState(catId, meta, ts) {
+    const total = meta ? meta.total : 130;
+    this.dom.sessionProgressBar.style.width = "100%";
+    this.dom.stateCard.style.display = "block";
+    this.dom.stateIcon.textContent = "🏆";
+    this.dom.stateTitle.textContent = `Úspěšně jsi zvládl toto téma!`;
+    this.dom.stateDesc.textContent =
+      `Okruh „${meta ? meta.label : catId}“ máš kompletně na ${total}/${total} bez jediné neopravené chyby. Můžeš téma zresetovat a zopakovat si všech ${total} otázek znovu, nebo pokračovat na jiný okruh.`;
+    this.dom.stateStatsPill.style.display = "inline-block";
+    this.dom.stateScoreText.textContent = `${total} / ${total} zvládnuto 🏆`;
+
+    this.dom.stateActions.innerHTML = "";
+    const repeatBtn = document.createElement("button");
+    repeatBtn.className = "primary-btn";
+    repeatBtn.textContent = `🔄 Opakovat znovu všech ${total} otázek`;
+    repeatBtn.addEventListener("click", () => {
+      const lvl = this.getActiveLevelKey();
+      const lp = this.getLevelProgress(lvl);
+      lp.topics[catId] = createTopicSession(this.getBundle(lvl), catId, []);
+      this.saveState();
+      this.renderHeaderAndMenu();
+      this.renderQuizModeView();
+    });
+    this.dom.stateActions.appendChild(repeatBtn);
+
+    const otherBtn = document.createElement("button");
+    otherBtn.className = "secondary-btn";
+    otherBtn.textContent = "Vybrat jiný okruh / Dnešní dávka";
+    otherBtn.addEventListener("click", () => {
+      this.renderMenuOverlay();
+      this.dom.menuOverlay.classList.add("visible");
+    });
+    this.dom.stateActions.appendChild(otherBtn);
+  }
+
+  showEmptyMistakesState() {
+    this.dom.sessionProgressBar.style.width = "100%";
+    this.dom.stateCard.style.display = "block";
+    this.dom.stateIcon.textContent = "✨";
+    this.dom.stateTitle.textContent = "Žádné neopravené chyby!";
+    this.dom.stateDesc.textContent =
+      "V bance chyb pro tuto úroveň teď nemáš jedinou otázku. Skvělá práce!";
+    this.dom.stateStatsPill.style.display = "none";
+
+    this.dom.stateActions.innerHTML = "";
+    const backBtn = document.createElement("button");
+    backBtn.className = "primary-btn";
+    backBtn.textContent = "Zpět na dnešní dávku 📅";
+    backBtn.addEventListener("click", () => this.selectMode("daily"));
+    this.dom.stateActions.appendChild(backBtn);
+  }
+
+  renderDiagnosticResultCard(result) {
+    const lvlUpper = this.getActiveLevelKey().toUpperCase();
+    const pct = Math.round((result.totalCorrect / result.totalQuestions) * 100);
+
+    this.dom.sessionProgressBar.style.width = "100%";
+    this.dom.diagnosticResultCard.style.display = "block";
+    this.dom.diagResultTitle.textContent = `Profil úrovně ${lvlUpper}`;
+    this.dom.diagResultSubtitle.textContent =
+      `Vstupní test z ${formatCzechDateLabel(result.date)} (správné odpovědi se započítaly do dnešního cíle).`;
+    this.dom.diagOverallScore.textContent = `Celkové skóre: ${result.totalCorrect} / ${result.totalQuestions} (${pct} %)`;
+
+    const entries = Object.entries(result.byCategory).map(([catId, data]) => ({
+      catId,
+      ...data,
+      pct: Math.round((data.correct / data.total) * 100)
+    }));
+    entries.sort((a, b) => a.pct - b.pct);
+
+    const weakest = entries.filter((e) => e.pct < 100).slice(0, 2);
+    if (weakest.length > 0) {
+      const names = weakest.map((w) => `<strong>${w.label} (${w.correct}/${w.total})</strong>`).join(" a ");
+      this.dom.diagRecommendations.innerHTML =
+        `🎯 <strong>Doporučené zaměření:</strong> Nejvíc bodů teď získáš opakováním v okruzích ${names}. Nezapomeň projít i odpovídající kapitoly ve Studovně!`;
+    } else {
+      this.dom.diagRecommendations.innerHTML =
+        `🌟 <strong>Skvělý výsledek!</strong> Všech 7 okruhů jsi zvládl bez jediné chyby. Drž pravidelnou denní dávku 20 otázek!`;
+    }
+
+    this.dom.diagBreakdownList.innerHTML = "";
+    for (const row of entries) {
+      const cls = row.pct <= 34 ? "is-weak" : row.pct < 80 ? "is-mid" : "is-strong";
+      const div = document.createElement("div");
+      div.className = "diag-row";
+      div.innerHTML = `
+        <div class="diag-row-top">
+          <span>${CATEGORY_ICONS[row.catId] || "📘"} ${row.label}</span>
+          <span>${row.correct} / ${row.total} (${row.pct}%)</span>
+        </div>
+        <div class="diag-bar-track">
+          <div class="diag-bar-fill ${cls}" style="width: ${row.pct}%"></div>
+        </div>
+      `;
+      this.dom.diagBreakdownList.appendChild(div);
+    }
+
+    const targetWeakId = entries[0] ? entries[0].catId : "daily";
+    this.dom.diagStartWeakestBtn.textContent = entries[0]
+      ? `Procvičit: ${entries[0].label} 🎯`
+      : "Procvičit nejslabší okruh 🎯";
+    this.dom.diagStartWeakestBtn.onclick = () => this.selectMode(targetWeakId);
+  }
+
+  // ---- Answer Evaluation & Progression Logic ----
+  handleChoiceSubmit(selectedIdx, btnElement) {
+    if (this.dom.feedbackSheet.classList.contains("visible")) return;
+
+    const q = this.currentQuestionObj;
+    const isCorrect = selectedIdx === q.answer;
+
+    const allBtns = this.dom.choiceOptionsContainer.querySelectorAll(".option-btn");
+    allBtns.forEach((b) => {
+      b.disabled = true;
+    });
+
+    if (isCorrect) {
+      btnElement.classList.add("correct");
+    } else {
+      btnElement.classList.add("wrong");
+      if (allBtns[q.answer]) allBtns[q.answer].classList.add("correct");
+    }
+
+    const correctDisplayText = q.options[q.answer];
+    this.processAnswer(q, isCorrect, correctDisplayText);
+  }
+
+  handleTextSubmit() {
+    if (this.dom.feedbackSheet.classList.contains("visible")) return;
+    const userVal = this.dom.textAnswerInput.value.trim();
+    if (!userVal) return;
+
+    const q = this.currentQuestionObj;
+    const normUser = normalizeAnswer(userVal);
+    const acceptedList = Array.isArray(q.answer) ? q.answer : [q.answer];
+    const isCorrect = acceptedList.some((ans) => normalizeAnswer(ans) === normUser);
+
+    this.dom.textAnswerInput.disabled = true;
+    this.dom.submitTextBtn.disabled = true;
+    this.dom.textAnswerInput.classList.add(isCorrect ? "is-correct" : "is-wrong");
+
+    this.processAnswer(q, isCorrect, acceptedList[0]);
+  }
+
+  processAnswer(q, isCorrect, correctDisplayText) {
+    this.checkDayRollover();
+    const lvl = this.getActiveLevelKey();
+    const lp = this.getLevelProgress(lvl);
+    const mode = this.state.activeMode;
+
+    // 1. Update Mistake Bank (add on wrong)
+    if (!isCorrect && !lp.mistakes.includes(q.id)) {
+      lp.mistakes.push(q.id);
+    }
+
+    // 2. Update Today's Unique Correct Counter & Daily Streak (across ALL modes!)
+    let triggeredStreakCelebration = false;
+    if (isCorrect) {
+      if (!this.state.todayStats.uniqueCorrectIds.includes(q.id)) {
+        this.state.todayStats.uniqueCorrectIds.push(q.id);
+      }
+      const today = getLocalISODate();
+      if (this.state.todayStats.uniqueCorrectIds.length >= 20 && this.state.streak.lastCompletedDate !== today) {
+        this.state.streak.count += 1;
+        this.state.streak.lastCompletedDate = today;
+        triggeredStreakCelebration = true;
+      }
+    }
+
+    // 3. Mode-specific state mutation (advance cursor immediately so refresh mid-feedback never repeats!)
+    if (mode === "daily") {
+      const daily = this.ensureDailyForToday();
+      if (isCorrect) {
+        if (!daily.correctIds.includes(q.id)) daily.correctIds.push(q.id);
+        daily.currentWrongIds = daily.currentWrongIds.filter((id) => id !== q.id);
+      } else {
+        if (!daily.currentWrongIds.includes(q.id)) daily.currentWrongIds.push(q.id);
+      }
+      daily.cursor += 1;
+      if (daily.cursor >= daily.queue.length) {
+        daily.phase = daily.currentWrongIds.length === 0 ? "completed" : "repair_prompt";
+      }
+    } else if (mode === "mistakes") {
+      const ms = lp.mistakesSession;
+      if (isCorrect) {
+        lp.mistakes = lp.mistakes.filter((id) => id !== q.id);
+      } else if (ms && !ms.wrongThisPass.includes(q.id)) {
+        ms.wrongThisPass.push(q.id);
+      }
+      if (ms) ms.cursor += 1;
+    } else if (mode === "all") {
+      if (lp.allSession) lp.allSession.cursor += 1;
+    } else if (mode === "diagnostic") {
+      const diag = lp.diagnostic.inProgress;
+      if (diag) {
+        diag.answers[q.id] = Boolean(isCorrect);
+        diag.cursor += 1;
+        if (diag.cursor >= diag.queue.length) {
+          this.finalizeDiagnostic(lvl);
+        }
+      }
+    } else {
+      const ts = lp.topics[mode];
+      const bundle = this.getBundle(lvl);
+      const meta = bundle.topics.find((t) => t.id === mode);
+      const total = meta ? meta.total : 130;
+      if (ts) {
+        if (isCorrect) {
+          if (!ts.masteredIds.includes(q.id)) ts.masteredIds.push(q.id);
+          ts.currentWrongIds = ts.currentWrongIds.filter((id) => id !== q.id);
+        } else {
+          if (!ts.currentWrongIds.includes(q.id)) ts.currentWrongIds.push(q.id);
+        }
+        ts.cursor += 1;
+        if (ts.cursor >= ts.queue.length) {
+          ts.phase = (ts.masteredIds.length >= total || ts.currentWrongIds.length === 0)
+            ? "mastered"
+            : "repair_prompt";
+        }
+      }
+    }
+
+    this.saveState();
+    this.renderHeaderAndMenu();
+
+    // Audio & Feedback Sheet
+    this.playAudio(isCorrect ? "correct" : "wrong");
+    this.showFeedbackSheet(isCorrect, correctDisplayText, q.explanation, q.tip);
+
+    if (triggeredStreakCelebration) {
+      setTimeout(() => this.showStreakCelebration(), 350);
+    }
+  }
+
+  nextQuestion() {
+    this.hideFeedbackSheet();
+    this.renderHeaderAndMenu();
+    this.renderQuizModeView();
+  }
+
+  finalizeDiagnostic(levelKey) {
+    const lp = this.getLevelProgress(levelKey);
+    const bundle = this.getBundle(levelKey);
+    const diag = lp.diagnostic.inProgress;
+    if (!diag) return;
+
+    const byCategory = {};
+    for (const t of bundle.topics) {
+      byCategory[t.id] = { label: t.label, correct: 0, total: 0 };
+    }
+
+    let totalCorrect = 0;
+    for (const qid of diag.queue) {
+      const q = this.getQuestionById(qid, levelKey);
+      if (!q) continue;
+      byCategory[q.category].total += 1;
+      if (diag.answers[qid]) {
+        byCategory[q.category].correct += 1;
+        totalCorrect += 1;
+      }
+    }
+
+    lp.diagnostic.lastResult = {
+      date: getLocalISODate(),
+      totalCorrect,
+      totalQuestions: diag.queue.length,
+      byCategory
+    };
+    lp.diagnostic.inProgress = null;
+  }
+
+  showFeedbackSheet(isCorrect, correctDisplayText, explanation, tip) {
+    this.dom.feedbackSheet.classList.remove("is-correct", "is-wrong");
+    this.dom.feedbackSheet.classList.add(isCorrect ? "is-correct" : "is-wrong");
+
+    if (isCorrect) {
+      this.dom.statusIcon.textContent = "🎉";
+      this.dom.statusTitle.textContent = "Skvěle! Správně";
+      this.dom.correctAnswerDisplay.style.display = "none";
+    } else {
+      this.dom.statusIcon.textContent = "💡";
+      this.dom.statusTitle.textContent = "Pozor, chyba!";
+      this.dom.correctAnswerDisplay.style.display = "block";
+      this.dom.correctAnswerDisplay.innerHTML = `Správně: <strong>${correctDisplayText}</strong>`;
+    }
+
+    this.dom.explanationText.textContent = explanation || "";
+    if (tip) {
+      this.dom.tipBox.style.display = "flex";
+      this.dom.tipText.textContent = tip;
+    } else {
+      this.dom.tipBox.style.display = "none";
+    }
+
+    this.dom.feedbackSheet.classList.add("visible");
+  }
+
+  hideFeedbackSheet() {
+    this.dom.feedbackSheet.classList.remove("visible");
+  }
+
+  showStreakCelebration() {
+    const count = this.state.streak.count;
+    let dayWord = "dní";
+    if (count === 1) dayWord = "den";
+    else if (count >= 2 && count <= 4) dayWord = "dny";
+
+    this.dom.celebrationStreakVal.textContent = `${count} ${dayWord}`;
+    this.dom.celebrationOverlay.classList.add("visible");
+    this.playAudio("celebration");
+  }
+
+  // ---- Learning Database (Studovna) ----
+  renderTheorySectionChrome() {
+    const lvl = this.getActiveLevelKey();
+    const lvlUpper = lvl.toUpperCase();
+    const chapters = this.theoryDB[lvl] || [];
+
+    this.dom.theoryHeaderTitle.textContent = `📖 ${lvlUpper} Studovna & Taháky`;
+    this.dom.theoryLevelBadge.textContent = lvlUpper;
+    this.dom.theoryLevelBadge.classList.toggle("is-b2", lvl === "b2");
+    this.dom.theoryHeaderSub.textContent = lvl === "b2"
+      ? "Kompletní pravidla, vzorce a zkouškové strategie pro B2 First (FCE)."
+      : "Kompletní pravidla, vzorce a zkouškové strategie pro C1 Advanced (CAE).";
+
+    const currentActiveChip = this._activeTheoryCategory || "all";
+    const validIds = new Set(["all", ...chapters.map((c) => c.id)]);
+    this._activeTheoryCategory = validIds.has(currentActiveChip) ? currentActiveChip : "all";
+
+    this.dom.theoryChips.innerHTML = "";
+    const allChip = document.createElement("button");
+    allChip.className = `chip${this._activeTheoryCategory === "all" ? " active" : ""}`;
+    allChip.textContent = "Vše";
+    allChip.addEventListener("click", () => {
+      this._activeTheoryCategory = "all";
+      this.renderTheorySectionChrome();
+      this.renderTheory();
+    });
+    this.dom.theoryChips.appendChild(allChip);
+
+    for (const ch of chapters) {
+      const chip = document.createElement("button");
+      chip.className = `chip${this._activeTheoryCategory === ch.id ? " active" : ""}`;
+      chip.textContent = ch.icon + " " + ch.title.split("(")[0].trim();
+      chip.addEventListener("click", () => {
+        this._activeTheoryCategory = ch.id;
+        this.renderTheorySectionChrome();
+        this.renderTheory();
+      });
+      this.dom.theoryChips.appendChild(chip);
     }
   }
 
   renderTheory() {
-    if (!this.theoryCardsContainer || typeof C1_THEORY_DATABASE === "undefined") return;
+    const lvl = this.getActiveLevelKey();
+    const chapters = this.theoryDB[lvl] || [];
+    const activeCat = this._activeTheoryCategory || "all";
+    const query = (this.dom.theorySearchInput.value || "").trim().toLowerCase();
 
-    const searchTerm = (this.theorySearchInput?.value || "").toLowerCase().trim();
-    const filter = this.currentTheoryFilter || "all";
+    const filtered = chapters.filter((ch) => {
+      if (activeCat !== "all" && ch.id !== activeCat) return false;
+      if (!query) return true;
+      const text = `${ch.title} ${ch.shortDesc} ${ch.summary} ${ch.formula} ${ch.sections.map((s) => s.heading + " " + s.content).join(" ")}`.toLowerCase();
+      return text.includes(query);
+    });
 
-    let items = C1_THEORY_DATABASE;
-    if (filter !== "all") {
-      items = items.filter(it => it.id === filter);
-    }
-
-    if (searchTerm) {
-      items = items.filter(it => {
-        const titleMatch = it.title.toLowerCase().includes(searchTerm);
-        const descMatch = it.shortDesc.toLowerCase().includes(searchTerm);
-        const formulaMatch = it.formula.toLowerCase().includes(searchTerm);
-        const sectionMatch = it.sections.some(s => 
-          s.heading.toLowerCase().includes(searchTerm) || s.content.toLowerCase().includes(searchTerm)
-        );
-        return titleMatch || descMatch || formulaMatch || sectionMatch;
-      });
-    }
-
-    if (items.length === 0) {
-      this.theoryCardsContainer.innerHTML = `
-        <div class="theory-card" style="text-align: center; color: var(--text-muted); padding: 40px 20px;">
-          <div style="font-size: 2.5rem; margin-bottom: 10px;">🔍</div>
-          <h3>Nebylo nic nalezeno</h3>
-          <p>Zkus zadat jiný výraz (např. 'inverze', 'subjunktiv', 'but for', '-ory').</p>
-        </div>
-      `;
+    this.dom.theoryCardsContainer.innerHTML = "";
+    if (filtered.length === 0) {
+      this.dom.theoryCardsContainer.innerHTML =
+        `<div class="card" style="text-align:center;color:#94a3b8;padding:30px;">Nic nenalezeno pro „${query}“. Zkus jiné klíčové slovo.</div>`;
       return;
     }
 
-    this.theoryCardsContainer.innerHTML = items.map(cat => {
-      const sectionsHtml = cat.sections.map(sec => `
+    for (const ch of filtered) {
+      const card = document.createElement("article");
+      card.className = "theory-card";
+
+      const sectionsHTML = ch.sections.map((sec) => `
         <div class="theory-section">
           <h4>${sec.heading}</h4>
           <div class="theory-section-content">${sec.content}</div>
         </div>
       `).join("");
 
-      return `
-        <article class="theory-card" id="theory-cat-${cat.id}">
-          <div class="theory-card-header">
-            <span class="theory-card-icon">${cat.icon}</span>
-            <div class="theory-card-title">
-              <h3>${cat.title}</h3>
-              <p>${cat.shortDesc}</p>
-            </div>
+      card.innerHTML = `
+        <div class="theory-card-header">
+          <div class="theory-card-icon">${ch.icon}</div>
+          <div class="theory-card-title">
+            <h3>${ch.title}</h3>
+            <p>${ch.shortDesc}</p>
           </div>
-
-          <div class="theory-formula-badge">
-            ⚡️ VZOREC: ${cat.formula}
-          </div>
-
-          <div class="theory-card-body">
-            ${sectionsHtml}
-          </div>
-
-          <button class="practice-topic-btn" data-topic="${cat.id}">
-            Procvičit toto téma v testu (${cat.icon}) ➔
-          </button>
-        </article>
+        </div>
+        <p style="font-size:0.88rem;color:#cbd5e1;margin-bottom:12px;line-height:1.45;">${ch.summary}</p>
+        <div class="theory-formula-badge">${ch.formula}</div>
+        ${sectionsHTML}
+        <button class="practice-topic-btn" data-cat="${ch.id}">Procvičit tento okruh (130 otázek) ➜</button>
       `;
-    }).join("");
 
-    // Attach click events to "Procvičit toto téma" buttons
-    this.theoryCardsContainer.querySelectorAll(".practice-topic-btn").forEach(btn => {
-      btn.addEventListener("click", () => {
-        const topic = btn.dataset.topic;
-        this.switchNavTab("quiz");
-        this.initTopic(topic);
+      card.querySelector(".practice-topic-btn").addEventListener("click", () => {
+        this.selectMode(ch.id);
       });
-    });
-  }
-
-  highlightActiveTopicBtn(activeBtn) {
-    document.querySelectorAll(".topic-item").forEach(b => b.classList.remove("active"));
-    activeBtn.classList.add("active");
-  }
-
-  updateMistakesCountUI() {
-    if (this.mistakesCountLabel) {
-      this.mistakesCountLabel.textContent = `${this.mistakes.length} uložených chyb`;
+      this.dom.theoryCardsContainer.appendChild(card);
     }
   }
 
-  initTopic(topic) {
-    this.currentTopic = topic;
-    this.updateMistakesCountUI();
-
-    // Map labels (kompaktní pro horní lištu)
-    const labels = {
-      daily: "Dnes (20)",
-      all: "1080 Mix",
-      inversions: "Inverze",
-      word_formation: "Word Form.",
-      transformations: "Transf.",
-      register: "Sloh & Styl",
-      collocations: "Kolokace",
-      mistakes: "Opáčko chyb"
-    };
-    this.topicNameEl.textContent = labels[topic] || "Téma";
-
-    // Filter question list
-    if (topic === "daily") {
-      let dailyQuestions = this.questions.filter(q => q.date === this.todayDateStr);
-      // Pokud je dnes ještě před 8.11.2026, vezmeme první den (8.11.2026)
-      if (dailyQuestions.length === 0) {
-        dailyQuestions = this.questions.filter(q => q.date === "2026-11-08");
-        this.topicNameEl.textContent = "08.11. (20)";
-      } else {
-        const parts = this.todayDateStr.split("-");
-        this.topicNameEl.textContent = `${parts[2]}.${parts[1]}. (20)`;
-      }
-      this.activeQuestionList = [...dailyQuestions];
-    } else if (topic === "all") {
-      this.activeQuestionList = [...this.questions];
-    } else if (topic === "mistakes") {
-      this.activeQuestionList = this.questions.filter(q => this.mistakes.includes(q.id));
-      if (this.activeQuestionList.length === 0) {
-        alert("Zatím nemáš uložené žádné chyby! Skvělá práce. Přepínám na dnešní dávku 20 otázek.");
-        this.initTopic("daily");
-        return;
-      }
-    } else {
-      this.activeQuestionList = this.questions.filter(q => q.category === topic);
-    }
-
-    // Shuffle questions
-    this.shuffle(this.activeQuestionList);
-    this.currentQuestionIndex = 0;
-    this.renderCurrentQuestion();
-  }
-
-  shuffle(array) {
-    for (let i = array.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [array[i], array[j]] = [array[j], array[i]];
-    }
-    return array;
-  }
-
-  renderCurrentQuestion() {
-    this.isAnswerSubmitted = false;
-    this.feedbackSheet.classList.remove("visible", "is-correct", "is-wrong");
-
-    if (this.currentQuestionIndex >= this.activeQuestionList.length) {
-      // Re-shuffle when finished all questions
-      this.shuffle(this.activeQuestionList);
-      this.currentQuestionIndex = 0;
-    }
-
-    this.currentQuestion = this.activeQuestionList[this.currentQuestionIndex];
-    const q = this.currentQuestion;
-
-    // Progress bar in current topic session
-    const percent = Math.min(100, Math.round(((this.currentQuestionIndex) / this.activeQuestionList.length) * 100));
-    this.sessionProgressBar.style.width = `${percent}%`;
-
-    // Metadata
-    this.qCategoryTag.textContent = q.categoryLabel || "C1 Advanced";
-    this.qCounterTag.textContent = `${this.currentQuestionIndex + 1} / ${this.activeQuestionList.length}`;
-    this.qInstruction.textContent = q.instruction || "Vyber správnou možnost:";
-
-    // Transformation Prompt Context
-    if (q.promptContext && q.keyWord) {
-      this.qPromptContext.style.display = "block";
-      this.qPromptText.textContent = `"${q.promptContext}"`;
-      this.qKeyWord.textContent = q.keyWord;
-    } else {
-      this.qPromptContext.style.display = "none";
-    }
-
-    // Question text (highlight blanks)
-    const formattedText = q.question.replace(/_{3,}/g, '<span style="color: #60a5fa; text-decoration: underline; text-underline-offset: 4px;">&nbsp;&nbsp;&nbsp;________&nbsp;&nbsp;&nbsp;</span>');
-    this.qQuestionText.innerHTML = formattedText;
-
-    // Multiple Choice vs Text
-    if (q.type === "choice") {
-      this.choiceOptionsContainer.style.display = "flex";
-      this.textInputContainer.style.display = "none";
-      this.renderChoiceOptions(q);
-    } else {
-      this.choiceOptionsContainer.style.display = "none";
-      this.textInputContainer.style.display = "flex";
-      this.textAnswerInput.value = "";
-      this.textAnswerInput.disabled = false;
-      this.submitTextBtn.disabled = false;
-      setTimeout(() => this.textAnswerInput.focus(), 50);
-    }
-  }
-
-  renderChoiceOptions(q) {
-    this.choiceOptionsContainer.innerHTML = "";
-    const letters = ["A", "B", "C", "D"];
-
-    q.options.forEach((optText, idx) => {
-      const btn = document.createElement("button");
-      btn.className = "option-btn";
-      btn.innerHTML = `
-        <span class="option-letter">${letters[idx]}</span>
-        <span class="option-label">${optText}</span>
-      `;
-      btn.addEventListener("click", () => this.handleChoiceSelect(idx, btn));
-      this.choiceOptionsContainer.appendChild(btn);
-    });
-  }
-
-  handleChoiceSelect(selectedIndex, selectedBtn) {
-    if (this.isAnswerSubmitted) return;
-    this.isAnswerSubmitted = true;
-
-    const q = this.currentQuestion;
-    const isCorrect = selectedIndex === q.answer;
-
-    // Style the clicked button
-    if (isCorrect) {
-      selectedBtn.classList.add("selected-correct");
-      this.onCorrectAnswer();
-    } else {
-      selectedBtn.classList.add("selected-wrong");
-      // Highlight the correct one
-      const allButtons = this.choiceOptionsContainer.querySelectorAll(".option-btn");
-      if (allButtons[q.answer]) {
-        allButtons[q.answer].classList.add("highlight-correct");
-      }
-      this.onIncorrectAnswer();
-    }
-
-    this.showFeedback(isCorrect, q.options[q.answer]);
-  }
-
-  normalizeAnswer(str) {
-    return (str || "")
-      .toLowerCase()
-      .trim()
-      .replace(/['’]/g, "'") // normalize curly apostrophes
-      .replace(/\s+/g, " "); // collapse multiple spaces
-  }
-
-  handleTextSubmit() {
-    if (this.isAnswerSubmitted) return;
-    const userInput = this.textAnswerInput.value.trim();
-    if (!userInput) return;
-
-    this.isAnswerSubmitted = true;
-    this.textAnswerInput.disabled = true;
-    this.submitTextBtn.disabled = true;
-
-    const q = this.currentQuestion;
-    const normalizedUser = this.normalizeAnswer(userInput);
-    
-    // Check against array of possible accepted answers
-    const acceptedList = Array.isArray(q.answer) ? q.answer : [q.answer];
-    const isCorrect = acceptedList.some(ans => this.normalizeAnswer(ans) === normalizedUser);
-
-    if (isCorrect) {
-      this.onCorrectAnswer();
-    } else {
-      this.onIncorrectAnswer();
-    }
-
-    const displayedAnswer = acceptedList[0];
-    this.showFeedback(isCorrect, displayedAnswer);
-  }
-
-  onCorrectAnswer() {
-    this.playAudio("correct");
-
-    // Remove from mistakes if in mistake bank
-    if (this.mistakes.includes(this.currentQuestion.id)) {
-      this.mistakes = this.mistakes.filter(id => id !== this.currentQuestion.id);
-      localStorage.setItem("c1_mistakes", JSON.stringify(this.mistakes));
-      this.updateMistakesCountUI();
-    }
-
-    // Increment today's correct count
-    this.todayCorrectCount += 1;
-    localStorage.setItem("c1_today_correct", this.todayCorrectCount);
-
-    // Check if daily goal achieved today
-    if (this.todayCorrectCount === this.DAILY_GOAL) {
-      this.triggerDailyGoalAchieved();
-    }
-
-    this.updateStatsUI();
-  }
-
-  onIncorrectAnswer() {
-    this.playAudio("incorrect");
-
-    // Add to mistakes bank if not already present
-    if (!this.mistakes.includes(this.currentQuestion.id)) {
-      this.mistakes.push(this.currentQuestion.id);
-      localStorage.setItem("c1_mistakes", JSON.stringify(this.mistakes));
-      this.updateMistakesCountUI();
-    }
-  }
-
-  triggerDailyGoalAchieved() {
-    // Only increment streak once per day!
-    if (this.lastCompletedDate !== this.todayDateStr) {
-      this.streak += 1;
-      this.lastCompletedDate = this.todayDateStr;
-      localStorage.setItem("c1_streak", this.streak);
-      localStorage.setItem("c1_last_completed_date", this.lastCompletedDate);
-
-      // Show celebration modal
-      setTimeout(() => {
-        this.playAudio("fanfare");
-        this.celebrationStreakVal.textContent = `${this.streak} ${this.streak === 1 ? "den" : (this.streak < 5 ? "dny" : "dní")}`;
-        this.celebrationOverlay.classList.add("visible");
-      }, 500);
-    }
-  }
-
-  showFeedback(isCorrect, correctAnsText) {
-    const q = this.currentQuestion;
-
-    if (isCorrect) {
-      this.feedbackSheet.className = "feedback-sheet visible is-correct";
-      this.statusIcon.textContent = "🎉";
-      this.statusTitle.textContent = "Skvěle! Správná odpověď";
-      this.correctAnswerDisplay.style.display = "none";
-    } else {
-      this.feedbackSheet.className = "feedback-sheet visible is-wrong";
-      this.statusIcon.textContent = "❌";
-      this.statusTitle.textContent = "Těsně vedle!";
-      this.correctAnswerDisplay.style.display = "block";
-      this.correctAnswerDisplay.innerHTML = `Správně mělo být: <strong>${correctAnsText}</strong>`;
-    }
-
-    // Explanation & Tip
-    this.explanationText.textContent = q.explanation || "Toto je oficiální pravidlo pro tuto C1 strukturu.";
-
-    if (q.tip) {
-      this.tipBox.style.display = "flex";
-      this.tipText.textContent = q.tip;
-    } else {
-      this.tipBox.style.display = "none";
-    }
-  }
-
-  loadNextQuestion() {
-    this.currentQuestionIndex += 1;
-    this.renderCurrentQuestion();
-  }
-
-  updateStatsUI() {
-    this.streakCountEl.textContent = this.streak;
-    this.dailyProgressTextEl.textContent = `${Math.min(this.todayCorrectCount, this.DAILY_GOAL)}/${this.DAILY_GOAL}`;
-    if (this.todayCorrectCount >= this.DAILY_GOAL) {
-      this.dailyProgressTextEl.style.color = "#4ade80";
-    } else {
-      this.dailyProgressTextEl.style.color = "#93c5fd";
-    }
-  }
-
-  // Web Audio API Synthesizer (Works 100% offline with zero audio files)
+  // ---- Audio Feedback & Service Worker ----
   playAudio(type) {
-    if (!this.soundEnabled) return;
+    if (!this.state.soundEnabled) return;
     try {
-      const AudioContext = window.AudioContext || window.webkitAudioContext;
-      if (!AudioContext) return;
-      if (!this.audioCtx) {
-        this.audioCtx = new AudioContext();
-      }
-      if (this.audioCtx.state === "suspended") {
-        this.audioCtx.resume();
-      }
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+      if (!this.audioCtx) this.audioCtx = new AudioCtx();
+      if (this.audioCtx.state === "suspended") this.audioCtx.resume();
 
       const now = this.audioCtx.currentTime;
-
-      if (type === "correct") {
-        // High, cheerful ascending major triad chord (C5 - E5 - G5)
-        const notes = [523.25, 659.25, 783.99];
-        notes.forEach((freq, idx) => {
-          const osc = this.audioCtx.createOscillator();
-          const gain = this.audioCtx.createGain();
-          osc.type = "sine";
-          osc.frequency.setValueAtTime(freq, now + idx * 0.07);
-          gain.gain.setValueAtTime(0, now + idx * 0.07);
-          gain.gain.linearRampToValueAtTime(0.18, now + idx * 0.07 + 0.02);
-          gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.07 + 0.35);
-          osc.connect(gain);
-          gain.connect(this.audioCtx.destination);
-          osc.start(now + idx * 0.07);
-          osc.stop(now + idx * 0.07 + 0.4);
-        });
-      } else if (type === "incorrect") {
-        // Subtle, low pitch downward bump
+      const playTone = (freq, startTime, duration, oscType = "sine", gainVal = 0.08) => {
         const osc = this.audioCtx.createOscillator();
         const gain = this.audioCtx.createGain();
-        osc.type = "triangle";
-        osc.frequency.setValueAtTime(220, now);
-        osc.frequency.exponentialRampToValueAtTime(110, now + 0.25);
-        gain.gain.setValueAtTime(0.2, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+        osc.type = oscType;
+        osc.frequency.setValueAtTime(freq, startTime);
+        gain.gain.setValueAtTime(gainVal, startTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
         osc.connect(gain);
         gain.connect(this.audioCtx.destination);
-        osc.start(now);
-        osc.stop(now + 0.28);
-      } else if (type === "fanfare") {
-        // Celebration Fanfare
-        const melody = [523.25, 659.25, 783.99, 1046.50];
-        melody.forEach((freq, idx) => {
-          const osc = this.audioCtx.createOscillator();
-          const gain = this.audioCtx.createGain();
-          osc.type = "triangle";
-          osc.frequency.setValueAtTime(freq, now + idx * 0.12);
-          gain.gain.setValueAtTime(0, now + idx * 0.12);
-          gain.gain.linearRampToValueAtTime(0.25, now + idx * 0.12 + 0.02);
-          gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.12 + 0.5);
-          osc.connect(gain);
-          gain.connect(this.audioCtx.destination);
-          osc.start(now + idx * 0.12);
-          osc.stop(now + idx * 0.12 + 0.55);
-        });
+        osc.start(startTime);
+        osc.stop(startTime + duration);
+      };
+
+      if (type === "correct") {
+        playTone(523.25, now, 0.14);
+        playTone(659.25, now + 0.08, 0.18);
+      } else if (type === "wrong") {
+        playTone(220, now, 0.16, "triangle", 0.07);
+        playTone(190, now + 0.1, 0.2, "triangle", 0.07);
+      } else if (type === "celebration") {
+        playTone(523.25, now, 0.14);
+        playTone(659.25, now + 0.1, 0.14);
+        playTone(783.99, now + 0.2, 0.18);
+        playTone(1046.5, now + 0.32, 0.35);
       }
-    } catch {
-      // Audio playback silently fails if autoplay restricted
-    }
+    } catch (_) {}
   }
 
   initServiceWorker() {
     if ("serviceWorker" in navigator) {
-      window.addEventListener("load", () => {
-        navigator.serviceWorker.register("./sw.js")
-          .then(() => {
-            console.log("C1 PWA Service Worker aktivní - offline režim připraven.");
-          })
-          .catch((err) => {
-            console.log("Service Worker registrace selhala (běží pravděpodobně přes file://):", err);
-          });
-      });
+      navigator.serviceWorker.register("./sw.js").catch(() => {});
     }
   }
 }
 
-// Spustit aplikaci po načtení DOMu
-document.addEventListener("DOMContentLoaded", () => {
-  window.c1App = new C1App();
-});
+if (typeof window !== "undefined") {
+  window.addEventListener("DOMContentLoaded", () => {
+    const app = new Certin90App(window.CERTIN90_DATA);
+    window.certinApp = app;
+    app.init();
+  });
+}
+
+if (typeof module !== "undefined") {
+  module.exports = {
+    Certin90App,
+    createDailySessionForDate,
+    createEmptyLevelProgress,
+    createTopicSession,
+    normalizeAnswer,
+    diffDaysISO,
+    addDaysISO
+  };
+}

@@ -27,9 +27,9 @@
   <path d="M370 195 L370 290" stroke="#facc15" stroke-width="8" stroke-linecap="round"/>
   <circle cx="370" cy="296" r="12" fill="#facc15"/>
 
-  <!-- Badge Text C1 -->
-  <rect x="146" y="320" width="220" height="96" rx="28" fill="url(#badgeGrad)" stroke="#60a5fa" stroke-width="4"/>
-  <text x="256" y="388" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="64" font-weight="900" fill="#ffffff" text-anchor="middle" letter-spacing="2">C1 CAE</text>
+  <!-- Badge Text Certin90 -->
+  <rect x="132" y="320" width="248" height="96" rx="28" fill="url(#badgeGrad)" stroke="#60a5fa" stroke-width="4"/>
+  <text x="256" y="387" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="56" font-weight="900" fill="#ffffff" text-anchor="middle" letter-spacing="1">Certin90</text>
 
   <!-- Mini Flame on top right -->
   <path d="M380 90 C380 90 410 120 410 145 C410 162 396 175 380 175 C364 175 350 162 350 145 C350 135 356 125 365 115 C365 115 365 130 375 130 C380 130 382 120 380 90 Z" fill="url(#flameGrad)"/>

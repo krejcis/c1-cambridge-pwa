@@ -416,9 +416,279 @@ const C1_THEORY_DATABASE = [
         </div>`
       }
     ]
+  },
+  {
+    id: "open_cloze",
+    title: "Open Cloze (Part 2 – 1 přesné slovo)",
+    icon: "🧩",
+    shortDesc: "Doplňování jednoho chybějícího gramatického či vazebného slova bez nabídky možností.",
+    summary: "V Part 2 na úrovni C1 nejde o náhodná slovíčka – z 90 % chybí pomocné sloveso, vztažné zájmeno, předložka, spojka, kvantifikátor nebo součást fixního idiomu.",
+    formula: "ČTI CELOU VĚTU ➔ URČI SLOVNÍ DRUH MEZERY ➔ HLEDEJ VAZBU OKOLO",
+    sections: [
+      {
+        heading: "1. Pět nejčastějších slovních druhů v C1 Open Cloze",
+        content: `
+        <div class="rule-box">
+          • <strong>Spojky &amp; kontrast:</strong> <code>albeit</code> (ačkoli), <code>thereby</code> (čímž), <code>whereas</code> (zatímco), <code>unless</code>, <code>whether</code>, <code>provided</code>.<br>
+          • <strong>Vztažná zájmena s předložkou:</strong> <code>by which time</code>, <code>in which case</code>, <code>for which</code>, <code>whose</code>, <code>whom</code>, <code>what</code> (to, co).<br>
+          • <strong>Inverze &amp; vytýkání:</strong> <code>Hardly ... when</code>, <code>No sooner ... than</code>, <code>Not only ... but</code>, <code>What impressed us WAS...</code>, <code>It was not UNTIL ... that</code>.<br>
+          • <strong>Předložkové fráze:</strong> <code>in spite OF</code>, <code>on account OF</code>, <code>with a view TO</code>, <code>regardless OF</code>, <code>save FOR</code>, <code>far FROM</code>.<br>
+          • <strong>Podmínky v inverzi:</strong> <code>Were [sb] TO do</code>, <code>Had [sb] known</code>, <code>Should you need</code>.
+        </div>`
+      },
+      {
+        heading: "2. Klíčové příklady z ostrých testů",
+        content: `
+        <div class="example-item">
+          <div class="en">Geothermal heating, <strong>albeit</strong> expensive upfront, pays for itself within a decade.</div>
+          <div class="cz">Albeit = ačkoli / byť (často před samotným přídavným jménem bez slovesa).</div>
+        </div>
+        <div class="example-item">
+          <div class="en"><strong>Far from</strong> discouraging her, the criticism motivated further research.</div>
+          <div class="cz">Far from + -ing = zdaleka ne, právě naopak.</div>
+        </div>
+        <div class="trap-box">
+          ⚠️ <strong>Pozor na nápovědu o jedno slovo dál:</strong> V Open Cloze nikdy nevynechávej kontrolu slova těsně před a za mezerou! Často rozhoduje jedna jediná předložka (např. <code>such ... as</code> vs <code>so ... that</code>).
+        </div>`
+      }
+    ]
+  },
+  {
+    id: "phrasals",
+    title: "Frázová slovesa & Slovesné vazby (C1)",
+    icon: "🚀",
+    shortDesc: "C1 frázová slovesa se 2–3 částmi a chytáky mezi gerundiem (-ing) a infinitivem.",
+    summary: "U frázových sloves mění předložka celý význam. U slovesných vazeb (Verb Patterns) zase některá slovesa mění význam podle toho, zda po nich následuje -ing nebo to-infinitiv.",
+    formula: "VERB + PARTICLE + PREPOSITION | REMEMBER / STOP / REGRET (+ -ING vs TO DO)",
+    sections: [
+      {
+        heading: "1. Nejzrádnější C1 slovesa měnící význam (-ing vs to-infinitiv)",
+        content: `
+        <div class="table-wrap">
+          <table class="theory-table">
+            <tr><th>Sloveso</th><th>+ -ing (minulost / děj)</th><th>+ to infinitiv (úkol / změna)</th></tr>
+            <tr><td><strong>Remember / Forget</strong></td><td>vzpomínka na minulost (<em>I'll never forget seeing Rome</em>)</td><td>nezapomenout úkol (<em>Remember to lock the door</em>)</td></tr>
+            <tr><td><strong>Regret</strong></td><td>litovat minulého činu (<em>I regret saying that</em>)</td><td>formální oznámení (<em>We regret to inform you...</em>)</td></tr>
+            <tr><td><strong>Stop</strong></td><td>přestat s činností (<em>Stop making excuses</em>)</td><td>zastavit se za účelem (<em>We stopped to buy water</em>)</td></tr>
+            <tr><td><strong>Try</strong></td><td>experiment / zkusit metodu (<em>Try restarting it</em>)</td><td>pokusit se o něco těžkého (<em>Try to lift this crate</em>)</td></tr>
+          </table>
+        </div>`
+      },
+      {
+        heading: "2. Chytáky s předložkou TO + -ing",
+        content: `
+        <div class="rule-box">
+          Když je <code>to</code> součástí fráze jako <strong>předložka</strong> (ne značka infinitivu!), MUSÍ po něm jít tvar <code>-ing</code>:<br>
+          • <strong>look forward to + -ing</strong> (těšit se na)<br>
+          • <strong>be/get used to + -ing</strong> (být zvyklý na)<br>
+          • <strong>object to + -ing</strong> (namítat proti)<br>
+          • <strong>admit to / confess to + -ing</strong> (přiznat se k)<br>
+          • <strong>with a view to + -ing</strong> (za účelem)
+        </div>
+        <div class="trap-box">
+          ⚠️ <strong>Suggest &amp; Recommend:</strong> Nikdy nepoužívej <s>suggest to go</s>! Správně pouze <strong>suggest going</strong> nebo <strong>suggest that we (should) go</strong>. A <code>worth</code> bere vždy činné -ing (<em>This book is worth reading</em>).
+        </div>`
+      }
+    ]
   }
 ];
 
+const B2_THEORY_DATABASE = [
+  {
+    id: "conditionals",
+    title: "Podmínkové věty & Přání (Conditionals & Wishes)",
+    icon: "🔀",
+    shortDesc: "0., 1., 2., 3. a smíšený kondicionál, unless, in case a přání s wish / if only / would rather.",
+    summary: "Na úrovni B2 First tvoří podmínky a neskutečná přání páteř gramatických cvičení i Part 4 transformací. Klíčem je vždy rozlišit reálnost a časový rámec (přítomnost vs minulost).",
+    formula: "1. IF + PRESENT, WILL | 2. IF + PAST, WOULD + V1 | 3. IF + HAD V3, WOULD HAVE V3",
+    sections: [
+      {
+        heading: "1. Přehled všech typů kondicionálů (včetně smíšeného)",
+        content: `
+        <div class="table-wrap">
+          <table class="theory-table">
+            <tr><th>Typ</th><th>Věta s IF</th><th>Hlavní věta</th><th>Použití</th></tr>
+            <tr><td><strong>0.</strong></td><td>Present Simple</td><td>Present Simple</td><td>Obecné pravdy a přírodní zákony</td></tr>
+            <tr><td><strong>1.</strong></td><td>Present Simple</td><td>will / can + V1</td><td>Reálná budoucí možnost</td></tr>
+            <tr><td><strong>2.</strong></td><td>Past Simple (<code>were</code>)</td><td>would + V1</td><td>Nereálná přítomnost / budoucnost</td></tr>
+            <tr><td><strong>3.</strong></td><td>Past Perfect (<code>had V3</code>)</td><td>would have + V3</td><td>Nereálná minulost (už nejde změnit)</td></tr>
+            <tr><td><strong>Mixed</strong></td><td><code>had V3</code> (minulost)</td><td><code>would + V1</code> (TEĎ)</td><td>Minulá příčina ➔ dnešní následek</td></tr>
+          </table>
+        </div>
+        <div class="trap-box">
+          ⚠️ <strong>Nikdy 'will' ani 'would' za IF / UNLESS / AS SOON AS:</strong> Po podmínkové nebo časové spojce (<em>if, unless, provided that, as long as, in case, until</em>) nikdy nedáváme <code>will</code>!
+        </div>`
+      },
+      {
+        heading: "2. Wish / If only / It's high time / Would rather",
+        content: `
+        <div class="rule-box">
+          • <strong>Přání pro přítomnost:</strong> <code>wish / If only + Past Simple</code> (<em>I wish I had more time</em>)<br>
+          • <strong>Lítost nad minulostí:</strong> <code>wish / If only + Past Perfect</code> (<em>I wish I hadn't said that</em>)<br>
+          • <strong>Otravný zvyk jiné osoby:</strong> <code>wish + someone + would + V1</code> (<em>I wish you would stop tapping!</em>)<br>
+          • <strong>Jiný podmět za would rather / It's high time:</strong> vždy <code>Past Simple</code> (<em>It's high time we left; I'd rather you opened the window</em>)
+        </div>`
+      }
+    ]
+  },
+  {
+    id: "tenses_passive",
+    title: "Časy, Pasivum & Nepřímá řeč",
+    icon: "⏳",
+    shortDesc: "Kontrast minulých časů, předbudoucí čas, kauzativum (have sth done) a backshift v nepřímé řeči.",
+    summary: "B2 testy prověřují orientaci na časové ose (co se stalo dříve, co zrovna probíhalo), tvorbu trpného rodu včetně průběhových časů a pravidla posunu časů v nepřímé řeči.",
+    formula: "BEFORE PAST = HAD V3 | BY FUTURE = WILL HAVE V3 | HAVE + OBJECT + V3",
+    sections: [
+      {
+        heading: "1. Orientace na časové ose &amp; kauzativum",
+        content: `
+        <div class="rule-box">
+          • <strong>Past Perfect (Simple/Cont.):</strong> děj, který proběhl či trval ('for 2 hours') před jiným minulým bodem.<br>
+          • <strong>Future Continuous (<code>will be -ing</code>):</strong> děj probíhající v konkrétním budoucím okamžiku (<em>This time tomorrow...</em>).<br>
+          • <strong>Future Perfect (<code>will have V3</code>):</strong> dokončený výsledek nejpozději do určitého bodu (<em>By the end of the year...</em>).<br>
+          • <strong>Kauzativum (nechat si udělat):</strong> <code>have / get + věc + V3</code> (<em>We're having the roof repaired</em>).
+        </div>`
+      },
+      {
+        heading: "2. Nepřímá řeč (Reported Speech) &amp; chytáky",
+        content: `
+        <div class="example-item">
+          <div class="en">Elena asked me <strong>whether I had locked</strong> the balcony door.</div>
+          <div class="cz">V nepřímé otázce je přímý slovosled (podmět + sloveso, bez did) a posun o čas zpět.</div>
+        </div>
+        <div class="trap-box">
+          ⚠️ <strong>Slovesa po nepřímé řeči:</strong><br>
+          • <code>remind / warn / tell / advise + osoba + (not) to do</code><br>
+          • <code>suggest / deny / admit + -ing</code> (NIKDY 'suggest someone to do'!)<br>
+          • <code>accuse someone OF + -ing</code> / <code>apologise FOR + -ing</code> / <code>congratulate ON + -ing</code>
+        </div>`
+      }
+    ]
+  },
+  {
+    id: "modals",
+    title: "Modální slovesa & Dedukce",
+    icon: "🔐",
+    shortDesc: "Jistota vs nemožnost v přítomnosti i minulosti (must have / can't have), povinnost a needless past.",
+    summary: "Rozdíl mezi 'mustn't' (zákaz) a 'don't have to' (nemusíš), stejně jako mezi 'didn't need to' a 'needn't have V3', patří mezi nejčastější zrádné body zkoušky B2 First.",
+    formula: "JISTOTA: MUST HAVE V3 | NEMOŽNOST: CAN'T HAVE V3 | ZBYTEČNĚ VYKONÁNO: NEEDN'T HAVE V3",
+    sections: [
+      {
+        heading: "1. Dedukce (Logické odhady)",
+        content: `
+        <div class="table-wrap">
+          <table class="theory-table">
+            <tr><th>Míra jistoty</th><th>Přítomnost</th><th>Minulost</th></tr>
+            <tr><td><strong>99 % ano (jistota)</strong></td><td><code>must + V1</code></td><td><code>must have + V3</code></td></tr>
+            <tr><td><strong>50 % (možná)</strong></td><td><code>may / might / could + V1</code></td><td><code>may / might / could have + V3</code></td></tr>
+            <tr><td><strong>99 % ne (nemožnost)</strong></td><td><code>can't + V1</code> (NIKDY mustn't!)</td><td><code>can't / couldn't have + V3</code></td></tr>
+          </table>
+        </div>`
+      },
+      {
+        heading: "2. Nutnost a zbytečnost v minulosti",
+        content: `
+        <div class="rule-box">
+          • <strong>didn't need to + V1:</strong> Nebylo to potřeba, a proto jsme to ani neudělali.<br>
+          • <strong>needn't have + V3:</strong> Udělali jsme to, ale zpětně to bylo úplně zbytečné.<br>
+          • <strong>konkrétní minulý úspěch:</strong> Použij <code>was/were able to</code> nebo <code>managed to</code> (nikoli kladné <code>could</code>!).<br>
+          • <strong>had better (not) + V1:</strong> Naléhavá praktická rada pro konkrétní situaci.
+        </div>`
+      }
+    ]
+  },
+  {
+    id: "word_formation",
+    title: "Tvoření slov (Part 3 Use of English)",
+    icon: "🧬",
+    shortDesc: "Předpony, přípony, nepravidelné změny kmene (deep/depth, proud/pride) a pozor na množná čísla.",
+    summary: "V B2 First dostaneš 8 mezer a u každé kořenové slovo. Musíš správně určit slovní druh, klad vs zápor a u podstatných jmen i jednotné či množné číslo.",
+    formula: "SLOVNÍ DRUH? ➔ KLAD / ZÁPOR? ➔ JEDNOTNÉ / MNOŽNÉ ČÍSLO?",
+    sections: [
+      {
+        heading: "1. Záporné předpony &amp; časté B2 přeměny",
+        content: `
+        <div class="rule-box">
+          • <strong>Před l ➔ il-</strong> (<em>illegal, illogical</em>) | <strong>Před r ➔ ir-</strong> (<em>irresponsible, irregular</em>)<br>
+          • <strong>Před p / m / b ➔ im-</strong> (<em>impossible, impatient, immoral</em>)<br>
+          • <strong>Časté změny kmene:</strong> <em>weigh ➔ weight, high ➔ height, long ➔ length, deep ➔ depth, strong ➔ strength, proud ➔ pride, relieve ➔ relief, prove ➔ proof, thief ➔ theft</em>.<br>
+          • <strong>Falešní přátelé:</strong> <code>sensible</code> (rozumný) vs <code>sensitive</code> (citlivý); <code>considerable</code> (značný) vs <code>considerate</code> (ohleduplný).
+        </div>`
+      }
+    ]
+  },
+  {
+    id: "transformations",
+    title: "Transformace vět (Part 4 Use of English)",
+    icon: "⚖️",
+    shortDesc: "2 až 5 slov včetně klíčového slova – bez změny jeho tvaru! Rozhodující body B2 zkoušky.",
+    summary: "Part 4 testuje schopnost vyjádřit tutéž myšlenku jinou gramatickou konstrukcí (pasivum, nepřímá řeč, kondicionály, frázová slovesa, srovnání). Klíčové slovo nesmíš nijak ohýbat.",
+    formula: "2–5 SLOV | KLÍČOVÉ SLOVO BEZE ZMĚNY | STAŽENÉ TVARY (DON'T) = 2 SLOVA",
+    sections: [
+      {
+        heading: "1. Nejčastější B2 transformační vzorce",
+        content: `
+        <div class="rule-box">
+          • <strong>It's ages since I saw him</strong> ➔ <code>I haven't seen him for ages</code> / <code>The last time I saw him was...</code><br>
+          • <strong>too + adj + to</strong> ➔ <code>so + adj + that + couldn't</code> / <code>not + opak + enough + to</code><br>
+          • <strong>Although + věta</strong> ➔ <code>Despite / In spite of + noun/-ing</code><br>
+          • <strong>succeed in + -ing</strong> ➔ <code>managed to + V1</code><br>
+          • <strong>There's no point (in) + -ing</strong> ➔ <code>It isn't worth + -ing</code><br>
+          • <strong>prefer doing X to doing Y</strong> (vždy předložka <code>to</code>, ne than!)
+        </div>`
+      }
+    ]
+  },
+  {
+    id: "open_cloze",
+    title: "Open Cloze (Part 2 – 1 slovo)",
+    icon: "🧩",
+    shortDesc: "Doplňování jednoho chybějícího slova: vztažná zájmena, předložky, spojky a idiomy.",
+    summary: "Stejně jako na C1 dostaneš text s 8 mezerami po jednom slově. Na B2 dominují předložky, vztažná zájmena (whose/where/which), kvantifikátory (many/much/any) a fixní spojení.",
+    formula: "VŽDY JEN 1 SLOVO | KONTROLUJ ČLENY, PŘEDLOŽKY A VZTAŽNÁ ZÁJMENA",
+    sections: [
+      {
+        heading: "1. Jisté body v B2 Part 2",
+        content: `
+        <div class="rule-box">
+          • <strong>Párové spojky:</strong> <code>neither ... nor</code>, <code>either ... or</code>, <code>whether ... or</code>, <code>so ... that</code>, <code>such a ... that</code><br>
+          • <strong>Předložkové vazby:</strong> <code>on account of</code>, <code>in case</code>, <code>by the time</code>, <code>contrary to</code>, <code>according to</code>, <code>instead of</code><br>
+          • <strong>Vztažná zájmena:</strong> <code>whose</code> (často bez členu!), <code>where</code> (místo), <code>which</code><br>
+          • <strong>Přídavná jména + předložky:</strong> <code>proud OF</code>, <code>keen ON</code>, <code>good AT</code>, <code>responsible FOR</code>, <code>identical TO</code>, <code>capable OF</code>
+        </div>`
+      }
+    ]
+  },
+  {
+    id: "phrasals",
+    title: "Frázová slovesa & Kolokace (B2)",
+    icon: "🚀",
+    shortDesc: "Zásadní B2 frázová slovesa (put off vs call off, turn down, take after) a make vs do.",
+    summary: "Ovládnutí B2 frázových sloves a silných kolokací (make/do/take/pay) ti ušetří nejvíc chyb v Part 1 (Multiple-Choice Cloze) i při psaní e-mailů a esejů.",
+    formula: "PUT OFF (ODLOŽIT) ≠ CALL OFF (ZRUŠIT) | MAKE (VYTVOŘIT) vs DO (ČINNOST)",
+    sections: [
+      {
+        heading: "1. Klíčová B2 frázová slovesa &amp; kolokace",
+        content: `
+        <div class="rule-box">
+          • <strong>put off</strong> = odložit | <strong>call off</strong> = úplně zrušit | <strong>turn down</strong> = odmítnout / ztišit<br>
+          • <strong>take after</strong> = podobat se příbuznému | <strong>take up</strong> = začít s koníčkem | <strong>give up</strong> = přestat<br>
+          • <strong>get over</strong> = zotavit se | <strong>get round to + -ing</strong> = konečně si najít čas<br>
+          • <strong>make:</strong> <em>a mistake, a decision, an appointment, a reservation, a living, an impression</em><br>
+          • <strong>do:</strong> <em>research, homework, a favour, the washing-up</em><br>
+          • <strong>take:</strong> <em>advantage of, part in, pride in, something for granted</em>
+        </div>`
+      }
+    ]
+  }
+];
+
+const THEORY_DATABASE = {
+  b2: B2_THEORY_DATABASE,
+  c1: C1_THEORY_DATABASE
+};
+
 if (typeof module !== "undefined") {
-  module.exports = { C1_THEORY_DATABASE };
+  module.exports = { C1_THEORY_DATABASE, B2_THEORY_DATABASE, THEORY_DATABASE };
 }
+

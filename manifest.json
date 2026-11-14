@@ -1,7 +1,7 @@
 {
-  "name": "C1 Cambridge Master - CAE Prep",
-  "short_name": "C1 Master",
-  "description": "Mobilní offline trenažér pro zvládnutí Cambridge C1 Advanced a maturitu",
+  "name": "Certin90 – B2 & C1 Cambridge za 90 dní",
+  "short_name": "Certin90",
+  "description": "Certifikát za 90 dní – 20 otázek, 10 minut denně. Kompletní offline trenažér pro B2 First (FCE) a C1 Advanced (CAE).",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
