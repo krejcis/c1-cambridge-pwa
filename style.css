@@ -1756,17 +1756,29 @@ body {
 }
 
 .essay-history-item {
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: var(--radius-sm);
-  padding: 8px 10px;
-  font-size: 0.8rem;
+  padding: 9px 12px;
+  font-size: 0.82rem;
+  font-family: inherit;
+  color: var(--text-primary);
+  width: 100%;
+  text-align: left;
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 10px;
   cursor: pointer;
+  transition: border-color 0.15s, background-color 0.15s;
+}
+
+.essay-history-item strong {
+  color: #60a5fa;
+  white-space: nowrap;
 }
 
 .essay-history-item:hover {
   border-color: var(--accent-blue-light);
+  background: rgba(59, 130, 246, 0.12);
 }
