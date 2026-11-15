@@ -130,6 +130,16 @@ class Certin90App {
     this.audioCtx = null;
     this.hasRenderedTheoryOnce = false;
     this.lastAnsweredQuestion = null;
+    this.supabase = (typeof window !== "undefined" && window.CertinSupabaseClient)
+      ? new window.CertinSupabaseClient()
+      : null;
+    this.cloudState = {
+      syncStatus: "offline", // "offline" | "syncing" | "synced" | "error"
+      plan: "free",
+      dailyAiLimit: 2,
+      lastSyncedAt: null
+    };
+    this._cloudSyncTimer = null;
   }
 
   init() {
@@ -147,6 +157,18 @@ class Certin90App {
     this.renderHeaderAndMenu();
     this.renderCurrentView();
     this.initServiceWorker();
+
+    if (this.supabase && this.supabase.isSignedIn()) {
+      this.syncWithCloud({ pullFirst: true });
+    }
+
+    if (typeof window !== "undefined") {
+      window.addEventListener("online", () => {
+        if (this.supabase && this.supabase.isSignedIn()) {
+          this.syncWithCloud({ pullFirst: false });
+        }
+      });
+    }
 
     document.addEventListener("visibilitychange", () => {
       if (!document.hidden && this.checkDayRollover()) {
@@ -224,6 +246,7 @@ class Certin90App {
       activeMode: parsed && parsed.activeMode ? parsed.activeMode : "daily",
       streak: parsed && parsed.streak ? parsed.streak : { count: legacyStreak, lastCompletedDate: legacyLastCompleted },
       todayStats: parsed && parsed.todayStats ? parsed.todayStats : { date: today, uniqueCorrectIds: [] },
+      localUpdatedAt: parsed && parsed.localUpdatedAt ? parsed.localUpdatedAt : null,
       levels: {}
     };
 
@@ -247,15 +270,21 @@ class Certin90App {
 
     this.checkStreakExpiration(today);
     if (this.state.activeLevel) {
-      this.saveState();
+      this.saveState({ skipCloudPush: true });
     }
   }
 
-  saveState() {
+  saveState(options = {}) {
     try {
+      if (!options.preserveTimestamp) {
+        this.state.localUpdatedAt = new Date().toISOString();
+      }
       localStorage.setItem(STORAGE_KEY, JSON.stringify(this.state));
     } catch (e) {
       console.error("Failed saving state:", e);
+    }
+    if (!options.skipCloudPush) {
+      this.scheduleCloudPush();
     }
   }
 
@@ -388,6 +417,35 @@ class Certin90App {
       resetLevelTitle: document.getElementById("resetLevelTitle"),
       resetLevelBtn: document.getElementById("resetLevelBtn"),
 
+      cloudSyncStatus: document.getElementById("cloudSyncStatus"),
+      cloudPlanPill: document.getElementById("cloudPlanPill"),
+      cloudAuthForm: document.getElementById("cloudAuthForm"),
+      authEmailInput: document.getElementById("authEmailInput"),
+      authPasswordInput: document.getElementById("authPasswordInput"),
+      authSignInBtn: document.getElementById("authSignInBtn"),
+      authSignUpBtn: document.getElementById("authSignUpBtn"),
+      cloudAuthMsg: document.getElementById("cloudAuthMsg"),
+      cloudSignedInBar: document.getElementById("cloudSignedInBar"),
+      cloudUserEmail: document.getElementById("cloudUserEmail"),
+      cloudSyncNowBtn: document.getElementById("cloudSyncNowBtn"),
+      authSignOutBtn: document.getElementById("authSignOutBtn"),
+      openEssayLabBtn: document.getElementById("openEssayLabBtn"),
+
+      essayOverlay: document.getElementById("essayOverlay"),
+      closeEssayBtn: document.getElementById("closeEssayBtn"),
+      essayQuotaLabel: document.getElementById("essayQuotaLabel"),
+      essayAuthNotice: document.getElementById("essayAuthNotice"),
+      essayOpenAuthBtn: document.getElementById("essayOpenAuthBtn"),
+      essayLevelSelect: document.getElementById("essayLevelSelect"),
+      essayTaskSelect: document.getElementById("essayTaskSelect"),
+      essayPromptInput: document.getElementById("essayPromptInput"),
+      essayTextInput: document.getElementById("essayTextInput"),
+      essayWordCount: document.getElementById("essayWordCount"),
+      gradeEssaySubmitBtn: document.getElementById("gradeEssaySubmitBtn"),
+      essayStatusMsg: document.getElementById("essayStatusMsg"),
+      essayResultContainer: document.getElementById("essayResultContainer"),
+      essayHistoryContainer: document.getElementById("essayHistoryContainer"),
+
       onboardingOverlay: document.getElementById("onboardingOverlay"),
       celebrationOverlay: document.getElementById("celebrationOverlay"),
       celebrationStreakVal: document.getElementById("celebrationStreakVal"),
@@ -430,6 +488,48 @@ class Certin90App {
     this.dom.allTopicBtn.addEventListener("click", () => this.selectMode("all"));
 
     this.dom.resetLevelBtn.addEventListener("click", () => this.confirmResetLevel());
+
+    // Cloud Auth & Essay Lab
+    if (this.dom.authSignInBtn) {
+      this.dom.authSignInBtn.addEventListener("click", () => this.handleCloudAuth("signin"));
+    }
+    if (this.dom.authSignUpBtn) {
+      this.dom.authSignUpBtn.addEventListener("click", () => this.handleCloudAuth("signup"));
+    }
+    if (this.dom.cloudSyncNowBtn) {
+      this.dom.cloudSyncNowBtn.addEventListener("click", () => this.syncWithCloud({ pullFirst: true }));
+    }
+    if (this.dom.authSignOutBtn) {
+      this.dom.authSignOutBtn.addEventListener("click", () => this.handleCloudSignOut());
+    }
+    if (this.dom.openEssayLabBtn) {
+      this.dom.openEssayLabBtn.addEventListener("click", () => this.openEssayLab());
+    }
+    if (this.dom.closeEssayBtn) {
+      this.dom.closeEssayBtn.addEventListener("click", () => this.dom.essayOverlay.classList.remove("visible"));
+    }
+    if (this.dom.essayOverlay) {
+      this.dom.essayOverlay.addEventListener("click", (e) => {
+        if (e.target === this.dom.essayOverlay) this.dom.essayOverlay.classList.remove("visible");
+      });
+    }
+    if (this.dom.essayOpenAuthBtn) {
+      this.dom.essayOpenAuthBtn.addEventListener("click", () => {
+        this.dom.essayOverlay.classList.remove("visible");
+        this.renderMenuOverlay();
+        this.dom.menuOverlay.classList.add("visible");
+        if (this.dom.authEmailInput) this.dom.authEmailInput.focus();
+      });
+    }
+    if (this.dom.essayTextInput) {
+      this.dom.essayTextInput.addEventListener("input", () => {
+        const words = (this.dom.essayTextInput.value || "").trim().split(/\s+/).filter(Boolean).length;
+        this.dom.essayWordCount.textContent = `${words} slov`;
+      });
+    }
+    if (this.dom.gradeEssaySubmitBtn) {
+      this.dom.gradeEssaySubmitBtn.addEventListener("click", () => this.submitEssayForGrading());
+    }
 
     // Onboarding Level Pickers
     document.querySelectorAll(".onboarding-level-btn").forEach((btn) => {
@@ -799,6 +899,8 @@ class Certin90App {
       btn.addEventListener("click", () => this.selectMode(topic.id));
       this.dom.categoryTopicList.appendChild(btn);
     }
+
+    this.renderCloudSyncUI();
   }
 
   // ---- Main View Router ----
@@ -1539,6 +1641,376 @@ class Certin90App {
       });
       this.dom.theoryCardsContainer.appendChild(card);
     }
+  }
+
+  // ---- Cloud Account, Sync & AI Essay Lab (Supabase) ----
+  escapeHTML(str) {
+    return String(str ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
+  getLocalProgressWeight() {
+    let score = (this.state?.streak?.count || 0) * 20 + (this.state?.todayStats?.uniqueCorrectIds?.length || 0);
+    for (const lvl of ["b2", "c1"]) {
+      const lp = this.state?.levels?.[lvl];
+      if (!lp) continue;
+      score += lp.daily?.correctIds?.length || 0;
+      score += lp.mistakes?.length || 0;
+      if (lp.diagnostic?.lastResult) score += 21;
+      for (const ts of Object.values(lp.topics || {})) {
+        if (ts && Array.isArray(ts.masteredIds)) score += ts.masteredIds.length;
+      }
+    }
+    return score;
+  }
+
+  showCloudAuthMsg(text, kind = "info") {
+    if (!this.dom?.cloudAuthMsg) return;
+    this.dom.cloudAuthMsg.textContent = text;
+    this.dom.cloudAuthMsg.className = `cloud-auth-msg${kind === "error" ? " is-error" : kind === "success" ? " is-success" : ""}`;
+    this.dom.cloudAuthMsg.style.display = text ? "block" : "none";
+  }
+
+  renderCloudSyncUI() {
+    if (!this.dom?.cloudPlanPill) return;
+    const signedIn = Boolean(this.supabase && this.supabase.isSignedIn());
+    const user = signedIn ? this.supabase.getUser() : null;
+
+    if (this.dom.cloudAuthForm) this.dom.cloudAuthForm.style.display = signedIn ? "none" : "flex";
+    if (this.dom.cloudSignedInBar) this.dom.cloudSignedInBar.style.display = signedIn ? "flex" : "none";
+
+    if (!signedIn) {
+      this.dom.cloudPlanPill.textContent = "Offline";
+      this.dom.cloudPlanPill.className = "sync-status-pill";
+      this.dom.cloudSyncStatus.textContent = "Lokální režim (offline). Přihlas se pro zálohu mezi mobilem a PC.";
+      return;
+    }
+
+    this.dom.cloudUserEmail.textContent = user?.email || user?.id || "Přihlášen";
+    const isPro = this.cloudState.plan === "pro";
+    this.dom.cloudPlanPill.textContent = isPro ? "PRO ✨" : "Cloud ✓";
+    this.dom.cloudPlanPill.className = `sync-status-pill ${isPro ? "is-pro" : "is-online"}`;
+
+    if (typeof navigator !== "undefined" && navigator.onLine === false) {
+      this.dom.cloudSyncStatus.textContent = "Offline režim · Změny se odešlou po připojení.";
+    } else if (this.cloudState.syncStatus === "syncing") {
+      this.dom.cloudSyncStatus.textContent = "Synchronizuji se Supabase...";
+    } else if (this.cloudState.syncStatus === "error") {
+      this.dom.cloudSyncStatus.textContent = "Synchronizace se nezdařila (lokální kopie uložena).";
+    } else if (this.cloudState.lastSyncedAt) {
+      const timeStr = new Date(this.cloudState.lastSyncedAt).toLocaleTimeString("cs-CZ", {
+        hour: "2-digit",
+        minute: "2-digit"
+      });
+      this.dom.cloudSyncStatus.textContent = `Synchronizováno v ${timeStr} (${isPro ? "Pro" : "Free"} plán)`;
+    } else {
+      this.dom.cloudSyncStatus.textContent = "Přihlášeno · Připraveno k synchronizaci.";
+    }
+  }
+
+  async handleCloudAuth(action) {
+    if (!this.supabase) return;
+    const email = (this.dom.authEmailInput?.value || "").trim();
+    const password = this.dom.authPasswordInput?.value || "";
+
+    if (!email || password.length < 6) {
+      this.showCloudAuthMsg("Zadej platný e-mail a heslo alespoň o 6 znacích.", "error");
+      return;
+    }
+
+    this.showCloudAuthMsg(action === "signup" ? "Zakládám účet..." : "Přihlašuji...", "info");
+    try {
+      if (action === "signup") {
+        const redirectTo = typeof window !== "undefined"
+          ? `${window.location.origin}${window.location.pathname}`
+          : undefined;
+        const res = await this.supabase.signUp(email, password, redirectTo);
+        if (res.needsEmailConfirmation) {
+          this.showCloudAuthMsg(
+            "Účet vytvořen! Zkontroluj e-mail a potvrď odkaz, poté se přihlas.",
+            "success"
+          );
+          return;
+        }
+      } else {
+        await this.supabase.signInWithPassword(email, password);
+      }
+
+      if (this.dom.authPasswordInput) this.dom.authPasswordInput.value = "";
+      this.showCloudAuthMsg("", "info");
+      await this.syncWithCloud({ pullFirst: true });
+      this.renderCloudSyncUI();
+    } catch (err) {
+      this.showCloudAuthMsg(err?.message || "Nepodařilo se přihlásit.", "error");
+    }
+  }
+
+  async handleCloudSignOut() {
+    if (!this.supabase) return;
+    await this.supabase.signOut();
+    this.cloudState.syncStatus = "offline";
+    this.cloudState.plan = "free";
+    this.cloudState.dailyAiLimit = 2;
+    this.cloudState.lastSyncedAt = null;
+    this.renderCloudSyncUI();
+  }
+
+  scheduleCloudPush() {
+    if (!this.supabase || !this.supabase.isSignedIn()) return;
+    if (typeof navigator !== "undefined" && navigator.onLine === false) return;
+    clearTimeout(this._cloudSyncTimer);
+    this._cloudSyncTimer = setTimeout(() => {
+      this.pushToCloud();
+    }, 1500);
+  }
+
+  async pushToCloud() {
+    if (!this.supabase || !this.supabase.isSignedIn()) return;
+    if (typeof navigator !== "undefined" && navigator.onLine === false) {
+      this.cloudState.syncStatus = "offline";
+      this.renderCloudSyncUI();
+      return;
+    }
+
+    this.cloudState.syncStatus = "syncing";
+    this.renderCloudSyncUI();
+    try {
+      const profilePayload = {
+        active_level: this.getActiveLevelKey(),
+        sound_enabled: Boolean(this.state.soundEnabled),
+        streak_count: Number(this.state.streak?.count || 0),
+        streak_last_completed_date: this.state.streak?.lastCompletedDate || null,
+        today_date: this.state.todayStats?.date || getLocalISODate(),
+        today_unique_correct_ids: Array.isArray(this.state.todayStats?.uniqueCorrectIds)
+          ? this.state.todayStats.uniqueCorrectIds
+          : []
+      };
+      await this.supabase.upsertProfile(profilePayload);
+
+      const clientTs = this.state.localUpdatedAt || new Date().toISOString();
+      await Promise.all(
+        ["b2", "c1"].map((lvl) => {
+          const lp = this.getLevelProgress(lvl);
+          return this.supabase.upsertLevelProgress(lvl, lp.startDate || getLocalISODate(), lp, clientTs);
+        })
+      );
+
+      this.cloudState.syncStatus = "synced";
+      this.cloudState.lastSyncedAt = new Date().toISOString();
+    } catch (_) {
+      this.cloudState.syncStatus = "error";
+    }
+    this.renderCloudSyncUI();
+  }
+
+  async syncWithCloud({ pullFirst = true } = {}) {
+    if (!this.supabase || !this.supabase.isSignedIn()) return;
+    if (typeof navigator !== "undefined" && navigator.onLine === false) {
+      this.cloudState.syncStatus = "offline";
+      this.renderCloudSyncUI();
+      return;
+    }
+
+    this.cloudState.syncStatus = "syncing";
+    this.renderCloudSyncUI();
+
+    try {
+      const cloud = await this.supabase.fetchCloudBundle();
+      if (!cloud) return;
+
+      if (cloud.subscription) {
+        this.cloudState.plan = cloud.subscription.plan || "free";
+        this.cloudState.dailyAiLimit = cloud.subscription.daily_ai_essay_limit ?? 2;
+      }
+
+      if (pullFirst && cloud.levels && cloud.levels.length > 0) {
+        const localWeight = this.getLocalProgressWeight();
+        const localTime = this.state.localUpdatedAt ? Date.parse(this.state.localUpdatedAt) : 0;
+        let pulledAny = false;
+
+        for (const row of cloud.levels) {
+          const lvl = row.level;
+          if (lvl !== "b2" && lvl !== "c1") continue;
+          const cloudTime = row.client_updated_at ? Date.parse(row.client_updated_at) : 0;
+          const hasCloudJson = row.state_json && Object.keys(row.state_json).length > 0;
+          if (hasCloudJson && (localWeight === 0 || cloudTime > localTime)) {
+            this.state.levels[lvl] = row.state_json;
+            pulledAny = true;
+          }
+        }
+
+        if (cloud.profile) {
+          const cp = cloud.profile;
+          if (pulledAny) {
+            if (cp.active_level === "b2" || cp.active_level === "c1") {
+              this.state.activeLevel = cp.active_level;
+            }
+            if (typeof cp.sound_enabled === "boolean") {
+              this.state.soundEnabled = cp.sound_enabled;
+            }
+            if ((cp.streak_count || 0) > (this.state.streak.count || 0)) {
+              this.state.streak = {
+                count: cp.streak_count,
+                lastCompletedDate: cp.streak_last_completed_date || null
+              };
+            }
+            const today = getLocalISODate();
+            if (cp.today_date === today && Array.isArray(cp.today_unique_correct_ids)) {
+              const merged = new Set([
+                ...(this.state.todayStats?.uniqueCorrectIds || []),
+                ...cp.today_unique_correct_ids
+              ]);
+              this.state.todayStats = { date: today, uniqueCorrectIds: [...merged] };
+            }
+            this.checkDayRollover();
+            this.saveState({ skipCloudPush: true, preserveTimestamp: true });
+            this.dom.onboardingOverlay?.classList.remove("visible");
+            this.renderHeaderAndMenu();
+            this.renderCurrentView();
+          }
+        }
+      }
+
+      await this.pushToCloud();
+    } catch (_) {
+      this.cloudState.syncStatus = "error";
+      this.renderCloudSyncUI();
+    }
+  }
+
+  openEssayLab() {
+    this.dom.menuOverlay.classList.remove("visible");
+    if (this.dom.essayLevelSelect) {
+      this.dom.essayLevelSelect.value = this.getActiveLevelKey();
+    }
+    const signedIn = Boolean(this.supabase && this.supabase.isSignedIn());
+    if (this.dom.essayAuthNotice) {
+      this.dom.essayAuthNotice.style.display = signedIn ? "none" : "flex";
+    }
+    if (this.dom.essayQuotaLabel) {
+      this.dom.essayQuotaLabel.textContent = signedIn
+        ? `Cambridge kritéria (0–20 b.) · Limit ${this.cloudState.dailyAiLimit}/den (${this.cloudState.plan.toUpperCase()})`
+        : "Cambridge kritéria (0–20 b.) · Vyžaduje přihlášení do Cloud účtu";
+    }
+    if (this.dom.essayStatusMsg) this.dom.essayStatusMsg.style.display = "none";
+    this.dom.essayOverlay.classList.add("visible");
+    if (signedIn) {
+      this.loadEssayHistory();
+    }
+  }
+
+  showEssayStatus(text, kind = "info") {
+    if (!this.dom?.essayStatusMsg) return;
+    this.dom.essayStatusMsg.textContent = text;
+    this.dom.essayStatusMsg.className = `cloud-auth-msg${kind === "error" ? " is-error" : kind === "success" ? " is-success" : ""}`;
+    this.dom.essayStatusMsg.style.display = text ? "block" : "none";
+  }
+
+  async submitEssayForGrading() {
+    if (!this.supabase || !this.supabase.isSignedIn()) {
+      this.showEssayStatus("Pro AI opravu se nejprve přihlas v Cloud účtu (≡).", "error");
+      return;
+    }
+    const essayText = (this.dom.essayTextInput?.value || "").trim();
+    if (essayText.length < 20) {
+      this.showEssayStatus("Napiš prosím delší text (alespoň 20 znaků).", "error");
+      return;
+    }
+
+    const level = this.dom.essayLevelSelect?.value || this.getActiveLevelKey();
+    const taskType = this.dom.essayTaskSelect?.value || "essay";
+    const promptText = (this.dom.essayPromptInput?.value || "").trim();
+
+    this.dom.gradeEssaySubmitBtn.disabled = true;
+    this.dom.gradeEssaySubmitBtn.textContent = "Hodnotím... ⏳";
+    this.showEssayStatus("AI examinátor právě hodnotí tvůj text podle Cambridge kritérií...", "info");
+
+    try {
+      const result = await this.supabase.gradeEssay({ level, taskType, promptText, essayText });
+      this.showEssayStatus("", "info");
+      if (this.dom.essayQuotaLabel && typeof result.remainingToday === "number") {
+        this.dom.essayQuotaLabel.textContent =
+          `Cambridge kritéria · Zbývá dnes ${result.remainingToday}/${result.dailyLimit} AI oprav`;
+      }
+      this.renderEssayResult(result.submission);
+      this.loadEssayHistory();
+    } catch (err) {
+      const code = err?.payload?.error;
+      if (code === "GEMINI_API_KEY_NOT_CONFIGURED") {
+        this.showEssayStatus(
+          "Backend je připravený, stačí v Supabase projektu doplnit tajný klíč GEMINI_API_KEY.",
+          "error"
+        );
+      } else {
+        this.showEssayStatus(err?.payload?.message || err?.message || "Chyba při AI hodnocení.", "error");
+      }
+    } finally {
+      this.dom.gradeEssaySubmitBtn.disabled = false;
+      this.dom.gradeEssaySubmitBtn.textContent = "Opravit pomocí AI ✨";
+    }
+  }
+
+  renderEssayResult(sub) {
+    if (!sub || !sub.ai_feedback_json || !this.dom?.essayResultContainer) return;
+    const fb = sub.ai_feedback_json;
+    const s = fb.scores || {};
+    const strengths = (fb.strengthsCs || []).map((x) => `<li>${this.escapeHTML(x)}</li>`).join("");
+    const improvements = (fb.improvementsCs || []).map((x) => `<li>${this.escapeHTML(x)}</li>`).join("");
+    const upgrades = (fb.languageUpgrades || []).map((u) => `
+      <div class="essay-upgrade-item">
+        <div><strong>Původně:</strong> ${this.escapeHTML(u.original)}</div>
+        <div><strong>Lépe (${sub.level.toUpperCase()}):</strong> ${this.escapeHTML(u.upgraded)}</div>
+        <div style="color:#94a3b8;font-size:0.78rem;">${this.escapeHTML(u.reasonCs)}</div>
+      </div>
+    `).join("");
+
+    this.dom.essayResultContainer.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+        <strong>Celkové skóre: ${sub.total_score} / ${sub.max_score || 20}</strong>
+        <span class="sync-status-pill is-online">${this.escapeHTML(fb.estimatedBand || sub.level.toUpperCase())}</span>
+      </div>
+      <div class="essay-scores-grid">
+        <div class="essay-score-pill"><span>Content</span><strong>${s.content ?? "-"}/5</strong></div>
+        <div class="essay-score-pill"><span>Comm. Achiev.</span><strong>${s.communicativeAchievement ?? "-"}/5</strong></div>
+        <div class="essay-score-pill"><span>Organisation</span><strong>${s.organisation ?? "-"}/5</strong></div>
+        <div class="essay-score-pill"><span>Language</span><strong>${s.language ?? "-"}/5</strong></div>
+      </div>
+      <p style="margin:0;color:#e2e8f0;">${this.escapeHTML(fb.summaryCs || "")}</p>
+      ${strengths ? `<div><strong>✅ Silné stránky:</strong><ul style="margin:4px 0 0 18px;">${strengths}</ul></div>` : ""}
+      ${improvements ? `<div><strong>🛠️ Co zlepšit:</strong><ul style="margin:4px 0 0 18px;">${improvements}</ul></div>` : ""}
+      ${upgrades ? `<div><strong>🚀 Jazykový upgrade:</strong>${upgrades}</div>` : ""}
+      ${fb.modelParagraph ? `<div class="rule-box"><strong>Ukázkový odstavec:</strong><br>${this.escapeHTML(fb.modelParagraph)}</div>` : ""}
+    `;
+    this.dom.essayResultContainer.style.display = "flex";
+  }
+
+  async loadEssayHistory() {
+    if (!this.supabase || !this.supabase.isSignedIn() || !this.dom?.essayHistoryContainer) return;
+    try {
+      const rows = await this.supabase.listEssaySubmissions(5);
+      if (!rows || rows.length === 0) {
+        this.dom.essayHistoryContainer.style.display = "none";
+        return;
+      }
+      this.dom.essayHistoryContainer.innerHTML = `<div class="section-label">Poslední hodnocené eseje</div>`;
+      for (const row of rows) {
+        const item = document.createElement("button");
+        item.type = "button";
+        item.className = "essay-history-item";
+        const dateLabel = new Date(row.created_at).toLocaleDateString("cs-CZ");
+        item.innerHTML = `
+          <span>${this.escapeHTML(row.level.toUpperCase())} · ${this.escapeHTML(row.task_type)} (${row.word_count} slov · ${dateLabel})</span>
+          <strong>${row.total_score ?? "-"}/${row.max_score || 20}</strong>
+        `;
+        item.addEventListener("click", () => this.renderEssayResult(row));
+        this.dom.essayHistoryContainer.appendChild(item);
+      }
+      this.dom.essayHistoryContainer.style.display = "flex";
+    } catch (_) {}
   }
 
   // ---- Audio Feedback & Service Worker ----

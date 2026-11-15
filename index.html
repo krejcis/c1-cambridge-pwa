@@ -302,12 +302,44 @@
               <button id="menuSoundToggleBtn" class="mini-action-btn">Zapnuto</button>
             </div>
 
+            <div class="settings-row-card cloud-sync-card" id="cloudSyncCard">
+              <div class="cloud-sync-header">
+                <div class="settings-row-info">
+                  <strong>☁️ Cloud účet &amp; Synchronizace (Supabase)</strong>
+                  <small id="cloudSyncStatus">Lokální režim (offline). Přihlas se pro zálohu mezi mobilem a PC.</small>
+                </div>
+                <span class="sync-status-pill" id="cloudPlanPill">Offline</span>
+              </div>
+
+              <div class="cloud-auth-form" id="cloudAuthForm">
+                <div class="auth-inputs-grid">
+                  <input type="email" id="authEmailInput" class="auth-input" placeholder="E-mail (např. tvuj@email.cz)" autocomplete="email" />
+                  <input type="password" id="authPasswordInput" class="auth-input" placeholder="Heslo (min. 6 znaků)" autocomplete="current-password" />
+                </div>
+                <div class="cloud-auth-actions">
+                  <button id="authSignInBtn" class="mini-action-btn" type="button">Přihlásit se</button>
+                  <button id="authSignUpBtn" class="secondary-mini-btn" type="button">Registrovat</button>
+                </div>
+                <div id="cloudAuthMsg" class="cloud-auth-msg" style="display: none;"></div>
+              </div>
+
+              <div class="cloud-signed-in-bar" id="cloudSignedInBar" style="display: none;">
+                <div class="cloud-user-line">
+                  <span id="cloudUserEmail">user@example.com</span>
+                </div>
+                <div class="cloud-auth-actions">
+                  <button id="cloudSyncNowBtn" class="mini-action-btn" type="button">Synchronizovat</button>
+                  <button id="authSignOutBtn" class="danger-mini-btn" type="button">Odhlásit</button>
+                </div>
+              </div>
+            </div>
+
             <div class="settings-row-card ai-teaser-card">
               <div class="settings-row-info">
                 <strong>✨ AI Oprava esejí (Gemini + Supabase)</strong>
-                <small>Chystáme: vložíš svou esej (B2/C1) a dostaneš bodování dle Cambridge kritérií.</small>
+                <small>Napiš nebo vlož svou esej (B2/C1) a získej hodnocení podle Cambridge kritérií.</small>
               </div>
-              <span class="coming-soon-pill">Další krok</span>
+              <button id="openEssayLabBtn" class="mini-action-btn" type="button">Otevřít ✍️</button>
             </div>
 
             <div class="settings-row-card danger-card">
@@ -367,12 +399,71 @@
         </button>
       </div>
     </div>
+
+    <!-- AI Essay Grading Lab Modal -->
+    <div class="celebration-overlay" id="essayOverlay">
+      <div class="celebration-card essay-modal-card">
+        <div class="essay-modal-top">
+          <div>
+            <h2>✨ AI Oprava esejí</h2>
+            <p class="essay-modal-sub" id="essayQuotaLabel">Hodnocení podle Cambridge kritérií (0–20 b.)</p>
+          </div>
+          <button id="closeEssayBtn" class="close-btn" title="Zavřít">&times;</button>
+        </div>
+
+        <div class="essay-auth-notice" id="essayAuthNotice" style="display: none;">
+          <span>Pro AI opravu esejí se nejprve přihlas do Cloud účtu v levém menu (≡). Offline testy i Studovna fungují dál bez účtu.</span>
+          <button id="essayOpenAuthBtn" class="mini-action-btn" type="button">Otevřít přihlášení</button>
+        </div>
+
+        <div class="essay-controls-row">
+          <select id="essayLevelSelect" class="auth-input">
+            <option value="c1">C1 Advanced (CAE)</option>
+            <option value="b2">B2 First (FCE)</option>
+          </select>
+          <select id="essayTaskSelect" class="auth-input">
+            <option value="essay">Essay</option>
+            <option value="report">Report</option>
+            <option value="proposal">Proposal</option>
+            <option value="review">Review</option>
+            <option value="letter">Letter / Email</option>
+            <option value="article">Article</option>
+          </select>
+        </div>
+
+        <input
+          type="text"
+          id="essayPromptInput"
+          class="auth-input"
+          placeholder="Zadání / téma eseje (volitelné)..."
+        />
+
+        <textarea
+          id="essayTextInput"
+          class="auth-input essay-textarea"
+          rows="7"
+          placeholder="Sem vlož nebo napiš svůj text v angličtině (doporučeno 140–260 slov)..."
+        ></textarea>
+
+        <div class="essay-submit-row">
+          <span class="essay-word-count" id="essayWordCount">0 slov</span>
+          <button id="gradeEssaySubmitBtn" class="primary-btn essay-submit-btn" type="button">
+            Opravit pomocí AI ✨
+          </button>
+        </div>
+
+        <div id="essayStatusMsg" class="cloud-auth-msg" style="display: none;"></div>
+        <div id="essayResultContainer" class="essay-result-container" style="display: none;"></div>
+        <div id="essayHistoryContainer" class="essay-history-container" style="display: none;"></div>
+      </div>
+    </div>
   </div>
 
   <!-- Scripts -->
   <script src="questions-b2.js"></script>
   <script src="questions-c1.js"></script>
   <script src="theory.js"></script>
+  <script src="supabase-client.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
