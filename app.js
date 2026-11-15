@@ -950,7 +950,7 @@ class Certin90App {
 
     this.dom.qQuestionText.innerHTML = q.question.replace(
       /_{3,}/g,
-      '<span class="blank-highlight">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>'
+      '<span class="blank-highlight" aria-label="prázdné místo">________</span>'
     );
 
     if (q.type === "choice") {
