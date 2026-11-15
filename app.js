@@ -451,6 +451,50 @@ class Certin90App {
       this.renderTheory();
     });
 
+    // Theory Chips horizontal scroll: mouse wheel + click-and-drag on desktop PC
+    const chipsEl = this.dom.theoryChips;
+    let isDraggingChips = false;
+    let didDragChips = false;
+    let dragStartX = 0;
+    let dragStartScroll = 0;
+
+    chipsEl.addEventListener("wheel", (e) => {
+      if (chipsEl.scrollWidth > chipsEl.clientWidth && Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+        e.preventDefault();
+        chipsEl.scrollLeft += e.deltaY;
+      }
+    }, { passive: false });
+
+    chipsEl.addEventListener("mousedown", (e) => {
+      if (e.button !== 0) return;
+      isDraggingChips = true;
+      didDragChips = false;
+      dragStartX = e.clientX;
+      dragStartScroll = chipsEl.scrollLeft;
+      chipsEl.classList.add("is-dragging");
+    });
+
+    window.addEventListener("mousemove", (e) => {
+      if (!isDraggingChips) return;
+      const dx = e.clientX - dragStartX;
+      if (Math.abs(dx) > 5) didDragChips = true;
+      chipsEl.scrollLeft = dragStartScroll - dx;
+    });
+
+    window.addEventListener("mouseup", () => {
+      if (!isDraggingChips) return;
+      isDraggingChips = false;
+      chipsEl.classList.remove("is-dragging");
+    });
+
+    chipsEl.addEventListener("click", (e) => {
+      if (didDragChips) {
+        e.preventDefault();
+        e.stopPropagation();
+        didDragChips = false;
+      }
+    }, true);
+
     // Submit text answer
     this.dom.submitTextBtn.addEventListener("click", () => {
       this.handleTextSubmit();
@@ -1411,7 +1455,10 @@ class Certin90App {
     const validIds = new Set(["all", ...chapters.map((c) => c.id)]);
     this._activeTheoryCategory = validIds.has(currentActiveChip) ? currentActiveChip : "all";
 
-    this.dom.theoryChips.innerHTML = "";
+    const chipsEl = this.dom.theoryChips;
+    const prevScrollLeft = chipsEl.scrollLeft;
+
+    chipsEl.innerHTML = "";
     const allChip = document.createElement("button");
     allChip.className = `chip${this._activeTheoryCategory === "all" ? " active" : ""}`;
     allChip.textContent = "Vše";
@@ -1420,8 +1467,9 @@ class Certin90App {
       this.renderTheorySectionChrome();
       this.renderTheory();
     });
-    this.dom.theoryChips.appendChild(allChip);
+    chipsEl.appendChild(allChip);
 
+    let activeBtnEl = this._activeTheoryCategory === "all" ? allChip : null;
     for (const ch of chapters) {
       const chip = document.createElement("button");
       chip.className = `chip${this._activeTheoryCategory === ch.id ? " active" : ""}`;
@@ -1431,7 +1479,13 @@ class Certin90App {
         this.renderTheorySectionChrome();
         this.renderTheory();
       });
-      this.dom.theoryChips.appendChild(chip);
+      chipsEl.appendChild(chip);
+      if (this._activeTheoryCategory === ch.id) activeBtnEl = chip;
+    }
+
+    chipsEl.scrollLeft = prevScrollLeft;
+    if (activeBtnEl && typeof activeBtnEl.scrollIntoView === "function") {
+      activeBtnEl.scrollIntoView({ behavior: "auto", inline: "nearest", block: "nearest" });
     }
   }
 
