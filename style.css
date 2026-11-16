@@ -2389,6 +2389,7 @@ body {
   border-collapse: collapse;
   margin: 12px 0 18px;
   font-size: 0.84rem;
+  color: #e2e8f0;
 }
 
 .legal-table th,
@@ -2397,6 +2398,11 @@ body {
   padding: 9px 10px;
   text-align: left;
   vertical-align: top;
+}
+
+.legal-table td {
+  color: #e2e8f0;
+  background: rgba(15, 23, 42, 0.45);
 }
 
 .legal-table th {
