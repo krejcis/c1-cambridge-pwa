@@ -19,6 +19,51 @@ const CATEGORY_ICONS = {
   phrasals: "🚀"
 };
 
+const ESSAY_PROMPT_LIBRARY = {
+  c1: {
+    essay: [
+      "Your class has watched a debate on how cities should reduce air pollution. Write an essay discussing two ways governments can encourage cleaner transport (improving public transit vs. introducing congestion charges) and explain which approach is more effective.",
+      "You attended a panel on artificial intelligence in secondary schools. Write an essay weighing two effects of AI tools on student learning (personalised tutoring vs. weaker critical thinking) and decide which impact is more significant."
+    ],
+    report: [
+      "Your college has been given a grant to upgrade its study facilities. Write a report for the principal evaluating two options (a quiet digital media lab vs. a 24-hour collaborative study lounge) and recommend one."
+    ],
+    proposal: [
+      "Your local council plans to revitalise an abandoned railway building for young adults. Write a proposal outlining two possible uses (a co-working hub vs. a cultural community centre) and explain why your preferred option deserves funding."
+    ],
+    review: [
+      "An international student magazine has asked for reviews of an online language-learning tool or app you have used recently. Describe its strengths and limitations and say who would benefit from it most."
+    ],
+    letter: [
+      "You recently volunteered at an international youth conference where organisation fell short of expectations. Write a formal letter to the event director highlighting two main issues and suggesting practical improvements for next year."
+    ],
+    article: [
+      "Write an article for an English-language lifestyle magazine about whether taking a digital detox for one week actually improves focus and relationships, sharing insights readers can try themselves."
+    ]
+  },
+  b2: {
+    essay: [
+      "In your English class you have been talking about part-time jobs for students. Write an essay discussing whether having a weekend job helps teenagers become independent or harms their school results, including your own idea.",
+      "Should secondary schools replace printed textbooks with tablets? Write an essay covering cost, student concentration, and your own point of view."
+    ],
+    report: [
+      "Your English teacher has asked you to write a report on sports facilities in your town for visiting exchange students. Mention what is already good, what needs improving, and recommend one activity."
+    ],
+    proposal: [
+      "Your school wants to organise a Green Week to cut plastic waste. Write a short proposal suggesting two practical activities for students and explaining why they will work."
+    ],
+    review: [
+      "Write a review of a film, series, or book you saw recently that made you think about an important social issue. Explain what you liked and whether you would recommend it to B2 students."
+    ],
+    letter: [
+      "Your English-speaking friend Sam wants to visit Prague for four days on a tight student budget. Write a reply suggesting where to stay, what to see, and how to save money on food and transport."
+    ],
+    article: [
+      "You see this notice in a student magazine: 'Learning outside the classroom!' Write an article describing the most useful thing you learned outside school and why others should try it."
+    ]
+  }
+};
+
 function getLocalISODate(dateObj = new Date()) {
   const y = dateObj.getFullYear();
   const m = String(dateObj.getMonth() + 1).padStart(2, "0");
@@ -140,23 +185,98 @@ class Certin90App {
       lastSyncedAt: null
     };
     this._cloudSyncTimer = null;
+    this._promptCycleIndex = 0;
   }
 
-  init() {
+  shouldShowLandingInitially() {
+    if (typeof window === "undefined") return false;
+    const params = new URLSearchParams(window.location.search || "");
+    if (params.get("app") === "1" || params.has("code") || params.has("error")) return false;
+    if (params.get("landing") === "1") return true;
+
+    const isStandalone = (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches)
+      || Boolean(window.navigator && window.navigator.standalone);
+    if (isStandalone) return false;
+    if (this.supabase && (this.supabase.isSignedIn() || this.supabase.pendingRecovery)) return false;
+
+    try {
+      if (localStorage.getItem(STORAGE_KEY)) return false;
+      for (const oldKey of LEGACY_STORAGE_KEYS) {
+        if (localStorage.getItem(oldKey)) return false;
+      }
+    } catch (_) {}
+    return true;
+  }
+
+  showLandingView(visible) {
+    if (!this.dom?.landingView || !this.dom?.appShell) return;
+    if (visible) {
+      this.dom.landingView.style.display = "block";
+      this.dom.appShell.style.display = "none";
+      if (typeof window !== "undefined") window.scrollTo(0, 0);
+    } else {
+      this.dom.landingView.style.display = "none";
+      this.dom.appShell.style.display = "flex";
+    }
+  }
+
+  enterAppFromLanding(chosenLevel = null) {
+    this.showLandingView(false);
+    if (chosenLevel === "b2" || chosenLevel === "c1") {
+      this.dom.onboardingOverlay?.classList.remove("visible");
+      this.state.activeLevel = chosenLevel;
+      this.state.activeMode = "diagnostic";
+      this.state.activeNavTab = "quiz";
+      this.startNewDiagnostic();
+      this.saveState();
+      this.renderHeaderAndMenu();
+      this.renderCurrentView();
+    } else if (!this.state.activeLevel) {
+      this.state.activeLevel = "c1";
+      this.openOnboardingModal();
+    }
+  }
+
+  async init() {
     this.loadState();
     this.cacheDOM();
     this.bindEvents();
     this.checkDayRollover();
 
+    if (this.supabase && typeof this.supabase.completePkceExchangeIfNeeded === "function") {
+      await this.supabase.completePkceExchangeIfNeeded();
+    }
+
+    const showLanding = this.shouldShowLandingInitially();
+    this.showLandingView(showLanding);
+
     if (!this.state.activeLevel) {
       this.state.activeLevel = "c1";
-      this.openOnboardingModal();
+      if (!showLanding) {
+        this.openOnboardingModal();
+      }
     }
 
     this.ensureDailyForToday();
     this.renderHeaderAndMenu();
     this.renderCurrentView();
     this.initServiceWorker();
+
+    if (this.supabase && this.supabase.lastAuthCallbackError) {
+      this.showLandingView(false);
+      this.renderMenuOverlay();
+      this.dom.menuOverlay.classList.add("visible");
+      this.showCloudAuthMsg(
+        `Přihlášení se nezdařilo (${this.supabase.lastAuthCallbackError}). Zkontroluj nastavení Google / Redirect URL v Supabase.`,
+        "error"
+      );
+      this.supabase.lastAuthCallbackError = null;
+    }
+
+    if (this.supabase && this.supabase.pendingRecovery && this.dom.recoveryOverlay) {
+      this.showLandingView(false);
+      this.dom.recoveryOverlay.classList.add("visible");
+    }
 
     if (this.supabase && this.supabase.isSignedIn()) {
       this.syncWithCloud({ pullFirst: true });
@@ -414,22 +534,42 @@ class Certin90App {
       allMenuTitle: document.getElementById("allMenuTitle"),
       categoryTopicList: document.getElementById("categoryTopicList"),
       menuSoundToggleBtn: document.getElementById("menuSoundToggleBtn"),
+      openLandingFromMenuBtn: document.getElementById("openLandingFromMenuBtn"),
       resetLevelTitle: document.getElementById("resetLevelTitle"),
       resetLevelBtn: document.getElementById("resetLevelBtn"),
+
+      landingView: document.getElementById("landingView"),
+      appShell: document.getElementById("appShell"),
+      pwaUpdateBanner: document.getElementById("pwaUpdateBanner"),
+      pwaUpdateReloadBtn: document.getElementById("pwaUpdateReloadBtn"),
+      landingOpenAppBtn: document.getElementById("landingOpenAppBtn"),
+      landingStartC1Btn: document.getElementById("landingStartC1Btn"),
+      landingStartB2Btn: document.getElementById("landingStartB2Btn"),
+      landingFreeBtn: document.getElementById("landingFreeBtn"),
+      landingProWaitBtn: document.getElementById("landingProWaitBtn"),
+      landingDemoOptions: document.getElementById("landingDemoOptions"),
+      landingDemoFeedback: document.getElementById("landingDemoFeedback"),
 
       cloudSyncStatus: document.getElementById("cloudSyncStatus"),
       cloudPlanPill: document.getElementById("cloudPlanPill"),
       cloudAuthForm: document.getElementById("cloudAuthForm"),
+      authGoogleBtn: document.getElementById("authGoogleBtn"),
       authEmailInput: document.getElementById("authEmailInput"),
       authPasswordInput: document.getElementById("authPasswordInput"),
       authSignInBtn: document.getElementById("authSignInBtn"),
       authSignUpBtn: document.getElementById("authSignUpBtn"),
+      authForgotBtn: document.getElementById("authForgotBtn"),
       cloudAuthMsg: document.getElementById("cloudAuthMsg"),
       cloudSignedInBar: document.getElementById("cloudSignedInBar"),
       cloudUserEmail: document.getElementById("cloudUserEmail"),
       cloudSyncNowBtn: document.getElementById("cloudSyncNowBtn"),
       authSignOutBtn: document.getElementById("authSignOutBtn"),
       openEssayLabBtn: document.getElementById("openEssayLabBtn"),
+
+      feedbackCategorySelect: document.getElementById("feedbackCategorySelect"),
+      feedbackMessageInput: document.getElementById("feedbackMessageInput"),
+      sendFeedbackBtn: document.getElementById("sendFeedbackBtn"),
+      feedbackStatusMsg: document.getElementById("feedbackStatusMsg"),
 
       essayOverlay: document.getElementById("essayOverlay"),
       closeEssayBtn: document.getElementById("closeEssayBtn"),
@@ -439,12 +579,19 @@ class Certin90App {
       essayLevelSelect: document.getElementById("essayLevelSelect"),
       essayTaskSelect: document.getElementById("essayTaskSelect"),
       essayPromptInput: document.getElementById("essayPromptInput"),
+      essayPickPromptBtn: document.getElementById("essayPickPromptBtn"),
       essayTextInput: document.getElementById("essayTextInput"),
       essayWordCount: document.getElementById("essayWordCount"),
       gradeEssaySubmitBtn: document.getElementById("gradeEssaySubmitBtn"),
       essayStatusMsg: document.getElementById("essayStatusMsg"),
       essayResultContainer: document.getElementById("essayResultContainer"),
       essayHistoryContainer: document.getElementById("essayHistoryContainer"),
+
+      recoveryOverlay: document.getElementById("recoveryOverlay"),
+      recoveryPasswordInput: document.getElementById("recoveryPasswordInput"),
+      recoveryStatusMsg: document.getElementById("recoveryStatusMsg"),
+      recoverySaveBtn: document.getElementById("recoverySaveBtn"),
+      recoveryCancelBtn: document.getElementById("recoveryCancelBtn"),
 
       onboardingOverlay: document.getElementById("onboardingOverlay"),
       celebrationOverlay: document.getElementById("celebrationOverlay"),
@@ -489,18 +636,84 @@ class Certin90App {
 
     this.dom.resetLevelBtn.addEventListener("click", () => this.confirmResetLevel());
 
-    // Cloud Auth & Essay Lab
+    // Landing Page CTA & Interactive Demo
+    if (this.dom.landingOpenAppBtn) {
+      this.dom.landingOpenAppBtn.addEventListener("click", () => this.enterAppFromLanding());
+    }
+    if (this.dom.landingStartC1Btn) {
+      this.dom.landingStartC1Btn.addEventListener("click", () => this.enterAppFromLanding("c1"));
+    }
+    if (this.dom.landingStartB2Btn) {
+      this.dom.landingStartB2Btn.addEventListener("click", () => this.enterAppFromLanding("b2"));
+    }
+    if (this.dom.landingFreeBtn) {
+      this.dom.landingFreeBtn.addEventListener("click", () => this.enterAppFromLanding("c1"));
+    }
+    if (this.dom.landingProWaitBtn) {
+      this.dom.landingProWaitBtn.addEventListener("click", () => this.enterAppFromLanding());
+    }
+    if (this.dom.openLandingFromMenuBtn) {
+      this.dom.openLandingFromMenuBtn.addEventListener("click", () => {
+        this.dom.menuOverlay.classList.remove("visible");
+        this.showLandingView(true);
+      });
+    }
+    if (this.dom.landingDemoOptions) {
+      this.dom.landingDemoOptions.querySelectorAll(".landing-demo-opt").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const isOk = btn.dataset.correct === "true";
+          this.dom.landingDemoOptions.querySelectorAll(".landing-demo-opt").forEach((b) => {
+            b.classList.remove("selected-correct", "selected-wrong");
+            if (b.dataset.correct === "true") b.classList.add("selected-correct");
+          });
+          if (!isOk) btn.classList.add("selected-wrong");
+          if (this.dom.landingDemoFeedback) {
+            this.dom.landingDemoFeedback.className = `landing-demo-feedback ${isOk ? "is-ok" : "is-wrong"}`;
+            this.dom.landingDemoFeedback.innerHTML = isOk
+              ? "<strong>🎉 Správně!</strong> Po záporné inverzi <em>Scarcely</em> následuje předminulý čas v otázkovém slovosledu: <strong>Scarcely + had + podmět + V3 ... when</strong>."
+              : "<strong>❌ Těsně vedle.</strong> Správná odpověď je <strong>B) had we finished</strong> – po <em>Scarcely / Hardly</em> v čele věty musí přijít inverze předminulého času (<em>had + podmět + V3</em>) a spojka <em>when</em>.";
+            this.dom.landingDemoFeedback.style.display = "block";
+          }
+        });
+      });
+    }
+
+    // PWA Update reload button
+    if (this.dom.pwaUpdateReloadBtn) {
+      this.dom.pwaUpdateReloadBtn.addEventListener("click", () => {
+        window.location.reload();
+      });
+    }
+
+    // Cloud Auth, OAuth, Password Recovery & Essay Lab
+    if (this.dom.authGoogleBtn) {
+      this.dom.authGoogleBtn.addEventListener("click", () => this.handleGoogleSignIn());
+    }
     if (this.dom.authSignInBtn) {
       this.dom.authSignInBtn.addEventListener("click", () => this.handleCloudAuth("signin"));
     }
     if (this.dom.authSignUpBtn) {
       this.dom.authSignUpBtn.addEventListener("click", () => this.handleCloudAuth("signup"));
     }
+    if (this.dom.authForgotBtn) {
+      this.dom.authForgotBtn.addEventListener("click", () => this.handleForgotPassword());
+    }
+    if (this.dom.recoverySaveBtn) {
+      this.dom.recoverySaveBtn.addEventListener("click", () => this.handleSaveNewPassword());
+    }
+    if (this.dom.recoveryCancelBtn) {
+      this.dom.recoveryCancelBtn.addEventListener("click", () => {
+        this.dom.recoveryOverlay?.classList.remove("visible");
+      });
+    }
     if (this.dom.cloudSyncNowBtn) {
       this.dom.cloudSyncNowBtn.addEventListener("click", () => this.syncWithCloud({ pullFirst: true }));
     }
     if (this.dom.authSignOutBtn) {
       this.dom.authSignOutBtn.addEventListener("click", () => this.handleCloudSignOut());
+    }
+    if (this.dom.sendFeedbackBtn) {
+      this.dom.sendFeedbackBtn.addEventListener("click", () => this.handleSendFeedback());
     }
     if (this.dom.openEssayLabBtn) {
       this.dom.openEssayLabBtn.addEventListener("click", () => this.openEssayLab());
@@ -521,11 +734,14 @@ class Certin90App {
         if (this.dom.authEmailInput) this.dom.authEmailInput.focus();
       });
     }
+    if (this.dom.essayPickPromptBtn) {
+      this.dom.essayPickPromptBtn.addEventListener("click", () => this.pickSampleEssayPrompt());
+    }
+    if (this.dom.essayLevelSelect) {
+      this.dom.essayLevelSelect.addEventListener("change", () => this.updateEssayWordCountUI());
+    }
     if (this.dom.essayTextInput) {
-      this.dom.essayTextInput.addEventListener("input", () => {
-        const words = (this.dom.essayTextInput.value || "").trim().split(/\s+/).filter(Boolean).length;
-        this.dom.essayWordCount.textContent = `${words} slov`;
-      });
+      this.dom.essayTextInput.addEventListener("input", () => this.updateEssayWordCountUI());
     }
     if (this.dom.gradeEssaySubmitBtn) {
       this.dom.gradeEssaySubmitBtn.addEventListener("click", () => this.submitEssayForGrading());
@@ -1749,6 +1965,136 @@ class Certin90App {
     }
   }
 
+  async handleGoogleSignIn() {
+    if (!this.supabase) return;
+    if (typeof navigator !== "undefined" && navigator.onLine === false) {
+      this.showCloudAuthMsg("Pro přihlášení přes Google je nutné připojení k internetu.", "error");
+      return;
+    }
+    try {
+      const redirectTo = typeof window !== "undefined"
+        ? `${window.location.origin}${window.location.pathname}?app=1`
+        : undefined;
+      await this.supabase.startGoogleOAuth(redirectTo);
+    } catch (err) {
+      this.showCloudAuthMsg(err?.message || "Nepodařilo se spustit Google přihlášení.", "error");
+    }
+  }
+
+  async handleForgotPassword() {
+    if (!this.supabase) return;
+    const email = (this.dom.authEmailInput?.value || "").trim();
+    if (!email || !email.includes("@")) {
+      this.showCloudAuthMsg("Nejprve vyplň do pole výše svůj e-mail pro obnovu hesla.", "error");
+      return;
+    }
+    this.showCloudAuthMsg("Odesílám odkaz pro obnovu hesla...", "info");
+    try {
+      const redirectTo = typeof window !== "undefined"
+        ? `${window.location.origin}${window.location.pathname}?app=1`
+        : undefined;
+      await this.supabase.sendPasswordReset(email, redirectTo);
+      this.showCloudAuthMsg("Pokud účet existuje, poslali jsme na e-mail odkaz pro změnu hesla.", "success");
+    } catch (err) {
+      this.showCloudAuthMsg(err?.message || "Odeslání obnovy hesla se nezdařilo.", "error");
+    }
+  }
+
+  async handleSaveNewPassword() {
+    if (!this.supabase) return;
+    const pwd = this.dom.recoveryPasswordInput?.value || "";
+    const msgEl = this.dom.recoveryStatusMsg;
+    const showRecMsg = (text, kind) => {
+      if (!msgEl) return;
+      msgEl.textContent = text;
+      msgEl.className = `cloud-auth-msg${kind === "error" ? " is-error" : kind === "success" ? " is-success" : ""}`;
+      msgEl.style.display = text ? "block" : "none";
+    };
+
+    if (pwd.length < 6) {
+      showRecMsg("Heslo musí mít alespoň 6 znaků.", "error");
+      return;
+    }
+    try {
+      await this.supabase.updatePassword(pwd);
+      if (this.dom.recoveryPasswordInput) this.dom.recoveryPasswordInput.value = "";
+      showRecMsg("Heslo bylo úspěšně změněno!", "success");
+      setTimeout(() => {
+        this.dom.recoveryOverlay?.classList.remove("visible");
+      }, 900);
+    } catch (err) {
+      showRecMsg(err?.message || "Změna hesla se nezdařila.", "error");
+    }
+  }
+
+  async handleSendFeedback() {
+    const msg = (this.dom.feedbackMessageInput?.value || "").trim();
+    const category = this.dom.feedbackCategorySelect?.value || "bug";
+    const statusEl = this.dom.feedbackStatusMsg;
+    const showFbMsg = (text, kind) => {
+      if (!statusEl) return;
+      statusEl.textContent = text;
+      statusEl.className = `cloud-auth-msg${kind === "error" ? " is-error" : kind === "success" ? " is-success" : ""}`;
+      statusEl.style.display = text ? "block" : "none";
+    };
+
+    if (!this.supabase || !this.supabase.isSignedIn()) {
+      showFbMsg("Pro odeslání zprávy do cloudu se nejprve přihlas výše v Cloud účtu.", "error");
+      return;
+    }
+    if (msg.length < 5) {
+      showFbMsg("Napiš prosím alespoň krátký popis (min. 5 znaků).", "error");
+      return;
+    }
+    this.dom.sendFeedbackBtn.disabled = true;
+    try {
+      await this.supabase.submitFeedback({
+        category,
+        message: msg,
+        appContext: {
+          level: this.getActiveLevelKey(),
+          mode: this.state.activeMode,
+          tab: this.state.activeNavTab
+        }
+      });
+      this.dom.feedbackMessageInput.value = "";
+      showFbMsg("Děkujeme! Zpětná vazba byla uložena.", "success");
+    } catch (err) {
+      showFbMsg(err?.message || "Odeslání se nezdařilo.", "error");
+    } finally {
+      this.dom.sendFeedbackBtn.disabled = false;
+    }
+  }
+
+  pickSampleEssayPrompt() {
+    const lvl = this.dom.essayLevelSelect?.value === "b2" ? "b2" : "c1";
+    const task = this.dom.essayTaskSelect?.value || "essay";
+    const list = ESSAY_PROMPT_LIBRARY[lvl]?.[task] || ESSAY_PROMPT_LIBRARY[lvl]?.essay || [];
+    if (!list.length || !this.dom.essayPromptInput) return;
+    const picked = list[this._promptCycleIndex % list.length];
+    this._promptCycleIndex += 1;
+    this.dom.essayPromptInput.value = picked;
+  }
+
+  updateEssayWordCountUI() {
+    if (!this.dom?.essayTextInput || !this.dom?.essayWordCount) return;
+    const words = (this.dom.essayTextInput.value || "").trim().split(/\s+/).filter(Boolean).length;
+    const lvl = this.dom.essayLevelSelect?.value === "b2" ? "b2" : "c1";
+    const min = lvl === "b2" ? 140 : 220;
+    const max = lvl === "b2" ? 190 : 260;
+
+    this.dom.essayWordCount.classList.remove("is-target", "is-over");
+    if (words >= min && words <= max) {
+      this.dom.essayWordCount.textContent = `${words} / ${min}–${max} slov ✓ Ideální rozsah`;
+      this.dom.essayWordCount.classList.add("is-target");
+    } else if (words > max) {
+      this.dom.essayWordCount.textContent = `${words} / ${min}–${max} slov (přes limit)`;
+      this.dom.essayWordCount.classList.add("is-over");
+    } else {
+      this.dom.essayWordCount.textContent = `${words} / ${min}–${max} slov`;
+    }
+  }
+
   async handleCloudSignOut() {
     if (!this.supabase) return;
     await this.supabase.signOut();
@@ -1887,6 +2233,7 @@ class Certin90App {
     if (this.dom.essayLevelSelect) {
       this.dom.essayLevelSelect.value = this.getActiveLevelKey();
     }
+    this.updateEssayWordCountUI();
     const signedIn = Boolean(this.supabase && this.supabase.isSignedIn());
     if (this.dom.essayAuthNotice) {
       this.dom.essayAuthNotice.style.display = signedIn ? "none" : "flex";
@@ -1969,7 +2316,7 @@ class Certin90App {
     `).join("");
 
     this.dom.essayResultContainer.innerHTML = `
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
         <strong>Celkové skóre: ${sub.total_score} / ${sub.max_score || 20}</strong>
         <span class="sync-status-pill is-online">${this.escapeHTML(fb.estimatedBand || sub.level.toUpperCase())}</span>
       </div>
@@ -1984,7 +2331,39 @@ class Certin90App {
       ${improvements ? `<div><strong>🛠️ Co zlepšit:</strong><ul style="margin:4px 0 0 18px;">${improvements}</ul></div>` : ""}
       ${upgrades ? `<div><strong>🚀 Jazykový upgrade:</strong>${upgrades}</div>` : ""}
       ${fb.modelParagraph ? `<div class="rule-box"><strong>Ukázkový odstavec:</strong><br>${this.escapeHTML(fb.modelParagraph)}</div>` : ""}
+      ${sub.essay_text ? `
+        <details class="essay-orig-details">
+          <summary>📄 Zobrazit původní text (${sub.word_count || 0} slov)</summary>
+          ${sub.prompt_text ? `<div class="essay-orig-text"><strong>Zadání:</strong> ${this.escapeHTML(sub.prompt_text)}</div>` : ""}
+          <div class="essay-orig-text">${this.escapeHTML(sub.essay_text)}</div>
+        </details>
+      ` : ""}
+      <div class="essay-result-actions">
+        ${sub.essay_text ? `<button type="button" class="secondary-mini-btn" id="essayLoadIntoEditorBtn">Načíst zpět do editoru ✏️</button>` : ""}
+        ${fb.modelParagraph ? `<button type="button" class="secondary-mini-btn" id="essayCopyModelBtn">Kopírovat ukázkový odstavec 📋</button>` : ""}
+      </div>
     `;
+
+    const loadBtn = document.getElementById("essayLoadIntoEditorBtn");
+    if (loadBtn && sub.essay_text) {
+      loadBtn.addEventListener("click", () => {
+        if (this.dom.essayLevelSelect) this.dom.essayLevelSelect.value = sub.level || "c1";
+        if (this.dom.essayTaskSelect) this.dom.essayTaskSelect.value = sub.task_type || "essay";
+        if (this.dom.essayPromptInput) this.dom.essayPromptInput.value = sub.prompt_text || "";
+        if (this.dom.essayTextInput) this.dom.essayTextInput.value = sub.essay_text || "";
+        this.updateEssayWordCountUI();
+        this.dom.essayTextInput?.focus();
+      });
+    }
+    const copyBtn = document.getElementById("essayCopyModelBtn");
+    if (copyBtn && fb.modelParagraph && navigator.clipboard) {
+      copyBtn.addEventListener("click", async () => {
+        try {
+          await navigator.clipboard.writeText(fb.modelParagraph);
+          copyBtn.textContent = "Zkopírováno ✓";
+        } catch (_) {}
+      });
+    }
     this.dom.essayResultContainer.style.display = "flex";
   }
 
@@ -2052,9 +2431,32 @@ class Certin90App {
   }
 
   initServiceWorker() {
-    if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.register("./sw.js").catch(() => {});
-    }
+    if (!("serviceWorker" in navigator)) return;
+    navigator.serviceWorker.register("./sw.js").then((reg) => {
+      const showUpdateBanner = () => {
+        if (this.dom?.pwaUpdateBanner) {
+          this.dom.pwaUpdateBanner.style.display = "flex";
+        }
+      };
+
+      if (reg.waiting && navigator.serviceWorker.controller) {
+        showUpdateBanner();
+      }
+
+      reg.addEventListener("updatefound", () => {
+        const newWorker = reg.installing;
+        if (!newWorker) return;
+        newWorker.addEventListener("statechange", () => {
+          if (newWorker.state === "installed" && navigator.serviceWorker.controller) {
+            showUpdateBanner();
+          }
+        });
+      });
+
+      navigator.serviceWorker.addEventListener("controllerchange", () => {
+        showUpdateBanner();
+      });
+    }).catch(() => {});
   }
 }
 

@@ -17,7 +17,174 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div class="app-container">
+  <!-- Landing Page (Single-Domain Public Entry + Pricing + Interactive Demo) -->
+  <div id="landingView" class="landing-view" style="display: none;">
+    <header class="landing-nav">
+      <div class="landing-nav-inner">
+        <a href="#landingHero" class="landing-brand">
+          <span class="landing-logo">🎓</span>
+          <span>Certin90</span>
+        </a>
+        <nav class="landing-links">
+          <a href="#landingDemo">Ukázka</a>
+          <a href="#landingFeatures">Metoda</a>
+          <a href="#landingPricing">Tarify</a>
+          <a href="#landingFaq">FAQ</a>
+        </nav>
+        <button id="landingOpenAppBtn" class="landing-cta-sm" type="button">Otevřít appku →</button>
+      </div>
+    </header>
+
+    <main class="landing-main">
+      <section id="landingHero" class="landing-hero">
+        <div class="landing-eyebrow">B2 First (FCE) &amp; C1 Advanced (CAE) · 100% i offline</div>
+        <h1>Cambridge certifikát za 90 dní. Stačí 20 otázek denně.</h1>
+        <p class="landing-lead">
+          Krátký denní dril (10 minut), chytrá smyčka oprav, česká gramatická studovna a AI examinátor esejí kalibrovaný podle Cambridge kritérií.
+        </p>
+        <div class="landing-hero-actions">
+          <button id="landingStartC1Btn" class="primary-btn landing-hero-btn" type="button">
+            🎓 Začít C1 Advanced zdarma
+          </button>
+          <button id="landingStartB2Btn" class="secondary-btn landing-hero-btn" type="button">
+            📘 Začít B2 First zdarma
+          </button>
+        </div>
+        <div class="landing-stats-strip">
+          <div><strong>1 820</strong><span>unikátních otázek</span></div>
+          <div><strong>7 okruhů</strong><span>pro B2 i C1 zvlášť</span></div>
+          <div><strong>0–20 b.</strong><span>AI hodnocení esejí</span></div>
+          <div><strong>Offline</strong><span>funguje v metru i letadle</span></div>
+        </div>
+      </section>
+
+      <section id="landingDemo" class="landing-section">
+        <div class="landing-section-head">
+          <h2>Vyzkoušej si jednu otázku hned tady</h2>
+          <p>Přesně takhle vypadá každodenní 10minutový trénink včetně českého vysvětlení pravidla.</p>
+        </div>
+        <div class="card landing-demo-card">
+          <div class="card-meta">
+            <div class="meta-left-badges">
+              <span class="level-mini-tag">C1</span>
+              <span class="category-tag">Záporné inverze</span>
+            </div>
+            <span class="counter-tag">Ukázka</span>
+          </div>
+          <div class="question-text">
+            Scarcely <span class="blank-highlight">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span> the report when the client requested three major revisions.
+          </div>
+          <div class="options-container" id="landingDemoOptions">
+            <button type="button" class="option-btn landing-demo-opt" data-correct="false"><span class="opt-letter">A</span><span>we had finished</span></button>
+            <button type="button" class="option-btn landing-demo-opt" data-correct="true"><span class="opt-letter">B</span><span>had we finished</span></button>
+            <button type="button" class="option-btn landing-demo-opt" data-correct="false"><span class="opt-letter">C</span><span>did we finished</span></button>
+            <button type="button" class="option-btn landing-demo-opt" data-correct="false"><span class="opt-letter">D</span><span>have we finished</span></button>
+          </div>
+          <div id="landingDemoFeedback" class="landing-demo-feedback" style="display: none;"></div>
+        </div>
+      </section>
+
+      <section id="landingFeatures" class="landing-section">
+        <div class="landing-section-head">
+          <h2>Proč to funguje lépe než náhodné kvízy</h2>
+        </div>
+        <div class="landing-features-grid">
+          <div class="landing-feature-card">
+            <h3>🛠️ Žádné body zadarmo</h3>
+            <p>Když v denních 20 otázkách chybuješ, vrátí se ti do opravy tak dlouho, dokud ji opravdu nevyřešíš správně. Teprve pak se započítá denní streak.</p>
+          </div>
+          <div class="landing-feature-card">
+            <h3>🧭 Vstupní diagnostika</h3>
+            <p>21 otázek (3 z každého okruhu) ti během pár minut ukáže, jestli tě sráží spíš inverze, tvoření slov, nebo transformace vět (Part 4).</p>
+          </div>
+          <div class="landing-feature-card">
+            <h3>✍️ AI Writing Lab</h3>
+            <p>Vlož esej, report nebo proposal. Dostaneš skóre podle 4 Cambridge škál (Content, Comm. Achievement, Organisation, Language) a konkrétní C1/B2 přepisy.</p>
+          </div>
+          <div class="landing-feature-card">
+            <h3>📱 Mobil i PC jako PWA</h3>
+            <p>Přidej na plochu telefonu a trénuj bez internetu. S bezplatným účtem se ti pak postup bezpečně synchronizuje mezi mobilem a počítačem.</p>
+          </div>
+        </div>
+      </section>
+
+      <section id="landingPricing" class="landing-section">
+        <div class="landing-section-head">
+          <h2>Jednoduché tarify bez pastí</h2>
+          <p>Celá databáze otázek i Studovna jsou dostupné zdarma. Rozšířené AI nástroje připravujeme do Pro verze.</p>
+        </div>
+        <div class="landing-pricing-grid">
+          <div class="landing-price-card">
+            <div class="price-tier">Free</div>
+            <div class="price-val">0 Kč</div>
+            <ul class="price-list">
+              <li>910 otázek pro B2 First + 910 pro C1 Advanced</li>
+              <li>90denní plán po 20 otázkách + smyčka oprav</li>
+              <li>Kompletní offline Studovna &amp; taháky</li>
+              <li>Diagnostický test + cloud záloha účtu</li>
+              <li>2 AI opravy esejí denně zdarma</li>
+            </ul>
+            <button id="landingFreeBtn" class="primary-btn" type="button">Začít zdarma</button>
+          </div>
+
+          <div class="landing-price-card is-pro-card">
+            <div class="price-tier-row">
+              <span class="price-tier">Pro / 90-Day Pass</span>
+              <span class="coming-soon-pill">Připravujeme</span>
+            </div>
+            <div class="price-val">Již brzy</div>
+            <ul class="price-list">
+              <li>Vše z tarifu Free bez omezení</li>
+              <li>Vyšší / neomezené denní AI opravy esejí</li>
+              <li>Kompletní historie a export esejového progresu</li>
+              <li>Rozšířené Cambridge úlohy pro psaní</li>
+            </ul>
+            <button id="landingProWaitBtn" class="secondary-btn" type="button">Vyzkoušet zatím Free verzi</button>
+          </div>
+        </div>
+      </section>
+
+      <section id="landingFaq" class="landing-section">
+        <div class="landing-section-head">
+          <h2>Časté otázky</h2>
+        </div>
+        <div class="landing-faq-list">
+          <details class="landing-faq-item">
+            <summary>Musím si vytvářet účet, abych mohl/a cvičit?</summary>
+            <p>Nemusíš. Celý gramatický trenažér, denní dávky i Studovna fungují okamžitě bez registrace a bez internetu. Účet potřebuješ jen pro synchronizaci mezi více zařízeními a pro AI opravu esejí.</p>
+          </details>
+          <details class="landing-faq-item">
+            <summary>Když už jsem cvičil/a offline a pak se přihlásím, přijdu o postup?</summary>
+            <p>Ne. Při prvním přihlášení se tvůj dosavadní lokální postup automaticky nahraje do tvého cloudového účtu.</p>
+          </details>
+          <details class="landing-faq-item">
+            <summary>Jak přesné je AI hodnocení esejí?</summary>
+            <p>AI examinátor je kalibrovaný podle 4 oficiálních hodnoticích škál Cambridge (každá 0–5 bodů, celkem 20), hlídá cílový rozsah slov a vypisuje konkrétní gramatické chyby i lepší C1/B2 formulace.</p>
+          </details>
+          <details class="landing-faq-item">
+            <summary>Potřebuji zvláštní aplikaci z App Store nebo Google Play?</summary>
+            <p>Ne, jde o moderní PWA aplikaci. V prohlížeči na mobilu stačí zvolit „Přidat na plochu“ a chová se jako nativní aplikace včetně offline režimu.</p>
+          </details>
+        </div>
+      </section>
+    </main>
+
+    <footer class="landing-footer">
+      <div>© 2026 Certin90 · Samostatná příprava na B2 First &amp; C1 Advanced</div>
+      <div class="landing-footer-links">
+        <a href="./terms.html">Podmínky užívání</a>
+        <a href="./privacy.html">Ochrana soukromí (GDPR)</a>
+        <span>Kontakt: [DOPLNIT: podpora@certin90.cz]</span>
+      </div>
+    </footer>
+  </div>
+
+  <div class="app-container" id="appShell">
+    <!-- PWA Auto-Update Banner -->
+    <div id="pwaUpdateBanner" class="pwa-update-banner" style="display: none;">
+      <span>✨ K dispozici je nová verze Certin90</span>
+      <button id="pwaUpdateReloadBtn" type="button" class="mini-action-btn">Aktualizovat</button>
+    </div>
     <!-- Top Bar Header (Compact Single Row) -->
     <header class="app-header">
       <!-- 1) Menu & Settings Page Trigger (3 horizontal bars) -->
@@ -312,6 +479,13 @@
               </div>
 
               <div class="cloud-auth-form" id="cloudAuthForm">
+                <button id="authGoogleBtn" class="google-oauth-btn" type="button">
+                  <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
+                    <path fill="#EA4335" d="M12 10.2v3.9h5.4c-.2 1.3-1.5 3.8-5.4 3.8-3.3 0-6-2.7-6-6s2.7-6 6-6c1.9 0 3.1.8 3.8 1.5l2.6-2.5C16.7 3.3 14.6 2.4 12 2.4 6.7 2.4 2.4 6.7 2.4 12S6.7 21.6 12 21.6c6.9 0 9.6-4.8 9.6-7.3 0-.5-.1-.9-.1-1.3H12z"/>
+                  </svg>
+                  <span>Pokračovat přes Google</span>
+                </button>
+                <div class="auth-divider"><span>nebo e-mailem</span></div>
                 <div class="auth-inputs-grid">
                   <input type="email" id="authEmailInput" class="auth-input" placeholder="E-mail (např. tvuj@email.cz)" autocomplete="email" />
                   <input type="password" id="authPasswordInput" class="auth-input" placeholder="Heslo (min. 6 znaků)" autocomplete="current-password" />
@@ -319,6 +493,10 @@
                 <div class="cloud-auth-actions">
                   <button id="authSignInBtn" class="mini-action-btn" type="button">Přihlásit se</button>
                   <button id="authSignUpBtn" class="secondary-mini-btn" type="button">Registrovat</button>
+                  <button id="authForgotBtn" class="link-mini-btn" type="button">Zapomenuté heslo?</button>
+                </div>
+                <div class="legal-inline-note">
+                  Registrací souhlasíš s <a href="./terms.html">Podmínkami</a> a <a href="./privacy.html">GDPR</a>.
                 </div>
                 <div id="cloudAuthMsg" class="cloud-auth-msg" style="display: none;"></div>
               </div>
@@ -342,12 +520,44 @@
               <button id="openEssayLabBtn" class="mini-action-btn" type="button">Otevřít ✍️</button>
             </div>
 
+            <div class="settings-row-card">
+              <div class="settings-row-info">
+                <strong>🏠 Úvodní stránka &amp; Tarify</strong>
+                <small>Zobrazit veřejnou prezentaci, ukázku, tarify a FAQ</small>
+              </div>
+              <button id="openLandingFromMenuBtn" class="secondary-mini-btn" type="button">Zobrazit</button>
+            </div>
+
+            <div class="settings-row-card cloud-sync-card" id="feedbackCard">
+              <div class="settings-row-info">
+                <strong>💬 Zpětná vazba &amp; Hlášení chyby</strong>
+                <small>Narazil jsi na chybu v otázce nebo máš nápad na vylepšení?</small>
+              </div>
+              <div class="essay-controls-row">
+                <select id="feedbackCategorySelect" class="auth-input">
+                  <option value="bug">Chyba v aplikaci</option>
+                  <option value="content">Chyba v otázce / textu</option>
+                  <option value="idea">Nápad na funkci</option>
+                  <option value="other">Jiné</option>
+                </select>
+                <button id="sendFeedbackBtn" class="mini-action-btn" type="button">Odeslat</button>
+              </div>
+              <textarea id="feedbackMessageInput" class="auth-input" rows="2" placeholder="Popiš krátce, o co jde (pro odeslání do cloudu se přihlas výše)..."></textarea>
+              <div id="feedbackStatusMsg" class="cloud-auth-msg" style="display: none;"></div>
+            </div>
+
             <div class="settings-row-card danger-card">
               <div class="settings-row-info">
                 <strong id="resetLevelTitle">🗑️ Reset postupu pro úroveň</strong>
                 <small>Vynuluje splněné okruhy (0/130) a dnešní dávku v aktivním levelu.</small>
               </div>
               <button id="resetLevelBtn" class="danger-mini-btn">Resetovat</button>
+            </div>
+
+            <div class="menu-legal-links">
+              <a href="./terms.html">Podmínky užívání</a>
+              <span>·</span>
+              <a href="./privacy.html">Ochrana soukromí (GDPR)</a>
             </div>
           </section>
         </div>
@@ -431,22 +641,27 @@
           </select>
         </div>
 
-        <input
-          type="text"
-          id="essayPromptInput"
-          class="auth-input"
-          placeholder="Zadání / téma eseje (volitelné)..."
-        />
+        <div class="essay-prompt-bar">
+          <input
+            type="text"
+            id="essayPromptInput"
+            class="auth-input"
+            placeholder="Zadání / téma eseje (volitelné)..."
+          />
+          <button id="essayPickPromptBtn" class="secondary-mini-btn" type="button" title="Vložit vzorové Cambridge zadání">
+            Vzorové zadání 🎲
+          </button>
+        </div>
 
         <textarea
           id="essayTextInput"
           class="auth-input essay-textarea"
           rows="7"
-          placeholder="Sem vlož nebo napiš svůj text v angličtině (doporučeno 140–260 slov)..."
+          placeholder="Sem vlož nebo napiš svůj text v angličtině (B2: 140–190 slov, C1: 220–260 slov)..."
         ></textarea>
 
         <div class="essay-submit-row">
-          <span class="essay-word-count" id="essayWordCount">0 slov</span>
+          <span class="essay-word-count" id="essayWordCount">0 / 220–260 slov</span>
           <button id="gradeEssaySubmitBtn" class="primary-btn essay-submit-btn" type="button">
             Opravit pomocí AI ✨
           </button>
@@ -455,6 +670,21 @@
         <div id="essayStatusMsg" class="cloud-auth-msg" style="display: none;"></div>
         <div id="essayResultContainer" class="essay-result-container" style="display: none;"></div>
         <div id="essayHistoryContainer" class="essay-history-container" style="display: none;"></div>
+      </div>
+    </div>
+
+    <!-- Password Recovery Modal -->
+    <div class="celebration-overlay" id="recoveryOverlay">
+      <div class="celebration-card onboarding-card">
+        <div class="celebration-flame">🔑</div>
+        <h2>Nastavení nového hesla</h2>
+        <p class="celebration-sub">Zadej nové heslo pro svůj účet Certin90 (minimálně 6 znaků).</p>
+        <input type="password" id="recoveryPasswordInput" class="auth-input" placeholder="Nové heslo..." style="margin-top: 12px;" />
+        <div id="recoveryStatusMsg" class="cloud-auth-msg" style="display: none; margin-top: 10px;"></div>
+        <div class="state-actions" style="margin-top: 14px;">
+          <button id="recoverySaveBtn" class="primary-btn" type="button">Uložit nové heslo</button>
+          <button id="recoveryCancelBtn" class="secondary-btn" type="button">Zrušit</button>
+        </div>
       </div>
     </div>
   </div>

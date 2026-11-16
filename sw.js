@@ -1,10 +1,12 @@
 // Service Worker pro C1 Cambridge Master PWA
 // 100% Offline podpora
 
-const CACHE_NAME = "certin90-v10";
+const CACHE_NAME = "certin90-v11";
 const ASSETS_TO_CACHE = [
   "./",
   "./index.html",
+  "./terms.html",
+  "./privacy.html",
   "./style.css",
   "./supabase-client.js",
   "./app.js",
