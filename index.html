@@ -488,7 +488,10 @@
                 <div class="auth-divider"><span>nebo e-mailem</span></div>
                 <div class="auth-inputs-grid">
                   <input type="email" id="authEmailInput" class="auth-input" placeholder="E-mail (např. tvuj@email.cz)" autocomplete="email" />
-                  <input type="password" id="authPasswordInput" class="auth-input" placeholder="Heslo (min. 6 znaků)" autocomplete="current-password" />
+                  <input type="password" id="authPasswordInput" class="auth-input" placeholder="Heslo (min. 8 znaků, písmena + číslice)" autocomplete="current-password" />
+                </div>
+                <div class="legal-inline-note">
+                  Pro registraci: min. <strong>8 znaků</strong>, alespoň jedno písmeno a jedna číslice. Ověřovací odkaz platí 15 min.
                 </div>
                 <div class="cloud-auth-actions">
                   <button id="authSignInBtn" class="mini-action-btn" type="button">Přihlásit se</button>
@@ -678,8 +681,8 @@
       <div class="celebration-card onboarding-card">
         <div class="celebration-flame">🔑</div>
         <h2>Nastavení nového hesla</h2>
-        <p class="celebration-sub">Zadej nové heslo pro svůj účet Certin90 (minimálně 6 znaků).</p>
-        <input type="password" id="recoveryPasswordInput" class="auth-input" placeholder="Nové heslo..." style="margin-top: 12px;" />
+        <p class="celebration-sub">Zadej nové heslo pro svůj účet Certin90 (min. 8 znaků, musí obsahovat písmena i číslice).</p>
+        <input type="password" id="recoveryPasswordInput" class="auth-input" placeholder="Nové heslo (min. 8 znaků, písmena + číslice)..." style="margin-top: 12px;" />
         <div id="recoveryStatusMsg" class="cloud-auth-msg" style="display: none; margin-top: 10px;"></div>
         <div class="state-actions" style="margin-top: 14px;">
           <button id="recoverySaveBtn" class="primary-btn" type="button">Uložit nové heslo</button>

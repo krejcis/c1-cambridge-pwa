@@ -1928,13 +1928,53 @@ class Certin90App {
     }
   }
 
+  validatePasswordStrength(password) {
+    const pwd = String(password || "");
+    if (pwd.length < 8 || !/[a-zA-Z]/.test(pwd) || !/\d/.test(pwd)) {
+      return "Heslo musí mít alespoň 8 znaků a obsahovat minimálně jedno písmeno a jednu číslici.";
+    }
+    return null;
+  }
+
+  translateAuthError(err, fallbackMsg) {
+    const raw = String(err?.message || "");
+    const lower = raw.toLowerCase();
+    if (lower.includes("email not confirmed")) {
+      return "E-mail ještě není potvrzený. Zkontroluj schránku (odkaz platí 15 minut).";
+    }
+    if (lower.includes("invalid login credentials")) {
+      return "Nesprávný e-mail nebo heslo.";
+    }
+    if (lower.includes("user already registered") || lower.includes("already been registered")) {
+      return "Účet s tímto e-mailem už existuje. Zkus se přihlásit nebo obnovit heslo.";
+    }
+    if (lower.includes("password should be at least") || lower.includes("weak")) {
+      return "Heslo nesplňuje požadavky: min. 8 znaků, alespoň jedno písmeno a jedna číslice.";
+    }
+    if (lower.includes("rate limit") || lower.includes("too many requests")) {
+      return "Příliš mnoho pokusů za sebou. Zkus to prosím za chvíli.";
+    }
+    return raw || fallbackMsg;
+  }
+
   async handleCloudAuth(action) {
     if (!this.supabase) return;
     const email = (this.dom.authEmailInput?.value || "").trim();
     const password = this.dom.authPasswordInput?.value || "";
 
-    if (!email || password.length < 6) {
-      this.showCloudAuthMsg("Zadej platný e-mail a heslo alespoň o 6 znacích.", "error");
+    if (!email || !email.includes("@")) {
+      this.showCloudAuthMsg("Zadej platný e-mail.", "error");
+      return;
+    }
+
+    if (action === "signup") {
+      const pwdErr = this.validatePasswordStrength(password);
+      if (pwdErr) {
+        this.showCloudAuthMsg(pwdErr, "error");
+        return;
+      }
+    } else if (!password) {
+      this.showCloudAuthMsg("Zadej své heslo.", "error");
       return;
     }
 
@@ -1942,12 +1982,12 @@ class Certin90App {
     try {
       if (action === "signup") {
         const redirectTo = typeof window !== "undefined"
-          ? `${window.location.origin}${window.location.pathname}`
+          ? `${window.location.origin}${window.location.pathname}?app=1`
           : undefined;
         const res = await this.supabase.signUp(email, password, redirectTo);
         if (res.needsEmailConfirmation) {
           this.showCloudAuthMsg(
-            "Účet vytvořen! Zkontroluj e-mail a potvrď odkaz, poté se přihlas.",
+            "Účet vytvořen! Poslali jsme potvrzovací odkaz na e-mail (platí 15 minut) – po kliknutí se můžeš přihlásit.",
             "success"
           );
           return;
@@ -1961,7 +2001,7 @@ class Certin90App {
       await this.syncWithCloud({ pullFirst: true });
       this.renderCloudSyncUI();
     } catch (err) {
-      this.showCloudAuthMsg(err?.message || "Nepodařilo se přihlásit.", "error");
+      this.showCloudAuthMsg(this.translateAuthError(err, "Nepodařilo se přihlásit."), "error");
     }
   }
 
@@ -2011,8 +2051,9 @@ class Certin90App {
       msgEl.style.display = text ? "block" : "none";
     };
 
-    if (pwd.length < 6) {
-      showRecMsg("Heslo musí mít alespoň 6 znaků.", "error");
+    const pwdErr = this.validatePasswordStrength(pwd);
+    if (pwdErr) {
+      showRecMsg(pwdErr, "error");
       return;
     }
     try {
@@ -2023,7 +2064,7 @@ class Certin90App {
         this.dom.recoveryOverlay?.classList.remove("visible");
       }, 900);
     } catch (err) {
-      showRecMsg(err?.message || "Změna hesla se nezdařila.", "error");
+      showRecMsg(this.translateAuthError(err, "Změna hesla se nezdařila."), "error");
     }
   }
 
