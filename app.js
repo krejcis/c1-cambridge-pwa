@@ -583,6 +583,10 @@ class Certin90App {
       essayTextInput: document.getElementById("essayTextInput"),
       essayWordCount: document.getElementById("essayWordCount"),
       gradeEssaySubmitBtn: document.getElementById("gradeEssaySubmitBtn"),
+      essayProgressWrap: document.getElementById("essayProgressWrap"),
+      essayProgressStep: document.getElementById("essayProgressStep"),
+      essayProgressPct: document.getElementById("essayProgressPct"),
+      essayProgressBar: document.getElementById("essayProgressBar"),
       essayStatusMsg: document.getElementById("essayStatusMsg"),
       essayResultContainer: document.getElementById("essayResultContainer"),
       essayHistoryContainer: document.getElementById("essayHistoryContainer"),
@@ -2298,6 +2302,58 @@ class Certin90App {
     this.dom.essayStatusMsg.style.display = text ? "block" : "none";
   }
 
+  startEssayProgressAnimation() {
+    this.stopEssayProgressAnimation();
+    if (!this.dom?.essayProgressWrap) return;
+
+    let pct = 8;
+    const setProgress = (val, label) => {
+      pct = Math.max(0, Math.min(100, Math.round(val)));
+      if (this.dom.essayProgressBar) this.dom.essayProgressBar.style.width = `${pct}%`;
+      if (this.dom.essayProgressPct) this.dom.essayProgressPct.textContent = `${pct} %`;
+      if (label && this.dom.essayProgressStep) this.dom.essayProgressStep.textContent = label;
+    };
+
+    const pickStepLabel = (p) => {
+      if (p < 22) return "Odesílám text a ověřuji limit...";
+      if (p < 48) return "Analyzuji splnění zadání a strukturu...";
+      if (p < 76) return "Kontroluji gramatiku, předložky a registr...";
+      return "Připravuji bodování a jazykové vylepšení...";
+    };
+
+    this.dom.essayProgressWrap.style.display = "flex";
+    setProgress(8, pickStepLabel(8));
+
+    const startTime = Date.now();
+    this._essayProgressTimer = setInterval(() => {
+      const elapsedSec = (Date.now() - startTime) / 1000;
+      // Smoothly approach 94% over ~12 seconds, capping at 94% until response returns
+      const target = Math.min(94, 8 + 86 * (1 - Math.exp(-elapsedSec / 4.2)));
+      setProgress(target, pickStepLabel(target));
+    }, 180);
+  }
+
+  stopEssayProgressAnimation({ complete = false } = {}) {
+    if (this._essayProgressTimer) {
+      clearInterval(this._essayProgressTimer);
+      this._essayProgressTimer = null;
+    }
+    if (!this.dom?.essayProgressWrap) return;
+
+    if (complete) {
+      if (this.dom.essayProgressBar) this.dom.essayProgressBar.style.width = "100%";
+      if (this.dom.essayProgressPct) this.dom.essayProgressPct.textContent = "100 %";
+      if (this.dom.essayProgressStep) this.dom.essayProgressStep.textContent = "Hodnocení hotovo ✓";
+      setTimeout(() => {
+        if (this.dom?.essayProgressWrap) this.dom.essayProgressWrap.style.display = "none";
+      }, 650);
+    } else {
+      this.dom.essayProgressWrap.style.display = "none";
+      if (this.dom.essayProgressBar) this.dom.essayProgressBar.style.width = "0%";
+      if (this.dom.essayProgressPct) this.dom.essayProgressPct.textContent = "0 %";
+    }
+  }
+
   async submitEssayForGrading() {
     if (!this.supabase || !this.supabase.isSignedIn()) {
       this.showEssayStatus("Pro AI opravu se nejprve přihlas v Cloud účtu (≡).", "error");
@@ -2315,10 +2371,12 @@ class Certin90App {
 
     this.dom.gradeEssaySubmitBtn.disabled = true;
     this.dom.gradeEssaySubmitBtn.textContent = "Hodnotím... ⏳";
-    this.showEssayStatus("AI examinátor právě hodnotí tvůj text podle Cambridge kritérií...", "info");
+    this.showEssayStatus("", "info");
+    this.startEssayProgressAnimation();
 
     try {
       const result = await this.supabase.gradeEssay({ level, taskType, promptText, essayText });
+      this.stopEssayProgressAnimation({ complete: true });
       this.showEssayStatus("", "info");
       if (this.dom.essayQuotaLabel && typeof result.remainingToday === "number") {
         this.dom.essayQuotaLabel.textContent =
@@ -2327,6 +2385,7 @@ class Certin90App {
       this.renderEssayResult(result.submission);
       this.loadEssayHistory();
     } catch (err) {
+      this.stopEssayProgressAnimation({ complete: false });
       const code = err?.payload?.error;
       if (code === "GEMINI_API_KEY_NOT_CONFIGURED") {
         this.showEssayStatus(
