@@ -2334,7 +2334,9 @@ class Certin90App {
           "error"
         );
       } else {
-        this.showEssayStatus(err?.payload?.message || err?.message || "Chyba při AI hodnocení.", "error");
+        const statusPart = err?.payload?.status ? ` (HTTP ${err.payload.status})` : "";
+        const baseMsg = err?.payload?.message || err?.message || "Chyba při AI hodnocení.";
+        this.showEssayStatus(`${baseMsg}${statusPart}`, "error");
       }
     } finally {
       this.dom.gradeEssaySubmitBtn.disabled = false;
