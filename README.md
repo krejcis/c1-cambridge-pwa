@@ -6,7 +6,7 @@ Offline mobilní tréninková aplikace typu **Duolingo / Autoškola**, která t�
 
 ## 🌐 Živá aplikace online (GitHub Pages)
 
-👉 **[https://krejcis.github.io/c1-cambridge-pwa/](https://krejcis.github.io/c1-cambridge-pwa/)**
+👉 **[https://certin90.cz](https://certin90.cz)**
 
 ---
 
